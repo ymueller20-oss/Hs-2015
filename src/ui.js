@@ -34,6 +34,11 @@
 
   /* ---------------- Kartendarstellung ---------------- */
   function fmtText(t) { return t.replace(/\*(\d+)\*/g, '<b class="sd">$1</b>'); }
+  const TYPE = { minion: 'Diener', spell: 'Zauber', weapon: 'Waffe' };
+  function artTag(cardId, cls) {
+    const u = HS.artUrl(cardId);
+    return u ? `<img src="${u}" alt="" draggable="false" loading="lazy">` : `<span class="noart">${GLYPH[cls] || '◆'}</span>`;
+  }
   function cardHTML(g, e, cardId, extra) {
     const d = e ? g.def(e) : HS.card(cardId);
     const cost = e && g ? g.cost(e) : d.cost;
@@ -42,17 +47,17 @@
     if (d.type === 'minion' || d.type === 'weapon') {
       const a = e && g ? g.atk(e) : d.atk;
       const h = e && g ? g.hp(e) : d.hp;
-      stats = `<div class="catk ${a > d.atk ? 'up' : a < d.atk ? 'dn' : ''}">${a}</div><div class="chp ${h > d.hp ? 'up' : h < d.hp ? 'dn' : ''}">${h}</div>`;
+      stats = `<div class="c-atk ${a > d.atk ? 'up' : a < d.atk ? 'dn' : ''}">${a}</div><div class="c-hp ${h > d.hp ? 'up' : h < d.hp ? 'dn' : ''}">${h}</div>`;
     }
     const text = e && g ? g.text(e) : HS.textOf(d);
-    const race = d.race ? HS.RACES[d.race] : d.secret ? 'Geheimnis' : '';
+    const type = (TYPE[d.type] || '') + (d.race ? ' — ' + HS.RACES[d.race] : d.secret ? ' — Geheimnis' : '');
+    const nm = d.name.length > 22 ? 'xlong' : d.name.length > 15 ? 'long' : '';
     return `<div class="card cls-${d.cls} rar-${d.rarity} type-${d.type} ${extra || ''}" ${e ? `data-eid="${e.id}"` : `data-cid="${d.id}"`}>
-      <div class="cost ${costCls}">${cost}</div>
-      <div class="art"><span class="glyph">${GLYPH[d.cls] || '◆'}</span></div>
-      ${d.rarity !== 'free' ? '<div class="gem"></div>' : ''}
-      <div class="name">${esc(d.name)}</div>
-      <div class="ctext">${fmtText(text)}</div>
-      <div class="race">${race}</div>${stats}</div>`;
+      <div class="c-name ${nm}">${esc(d.name)}</div>
+      <div class="c-cost ${costCls}">${cost}</div>
+      <div class="c-art">${artTag(d.id, d.cls)}</div>
+      <div class="c-type">${type}<i class="c-gem"></i></div>
+      <div class="c-text"><div>${fmtText(text)}</div></div>${stats}</div>`;
   }
 
   /* ---------------- Deckauswahl ---------------- */
@@ -187,10 +192,20 @@
         return;
       }
       if (ev.type === 'action' && this.g && this.mode === 'online') {
-        this.busy = false;
-        this.snapshot();
-        HS.applyAction(this.g, ev.seat, ev.action);
-        this.after();
+        const g = this.g;
+        const a = ev.action;
+        this.queue = (this.queue || Promise.resolve()).then(() => {
+          if (this.g !== g) return;
+          const mine = ev.seat === this.seat;
+          if (!mine && a.type === 'play' && g.ent(a.id)) this.showcase(g.ent(a.id).card, g.P(ev.seat).name);
+          const anim = !mine && a.type === 'attack' ? this.animateAttack(a.a, a.d) : Promise.resolve();
+          return anim.then(() => {
+            if (mine) this.busy = false;
+            this.snapshot();
+            HS.applyAction(g, ev.seat, a);
+            this.after();
+          });
+        });
       }
     },
 
@@ -270,11 +285,12 @@
         this.aiTimer = null;
         if (!this.g || this.g !== g) return;
         const a = HS.AI.choose(g, 1);
-        this.flashIds = a.type === 'attack' ? [a.a, a.d] : a.type === 'play' && a.target ? [a.target] : a.type === 'power' && a.target ? [a.target] : [];
-        this.snapshot();
-        HS.applyAction(g, 1, a);
-        this.after();
-      }, 750);
+        this.flashIds = a.type === 'play' && a.target ? [a.target] : a.type === 'power' && a.target ? [a.target] : [];
+        if (a.type === 'play') this.showcase(g.ent(a.id).card, g.P(1).name);
+        const go = () => { if (this.g !== g) return; this.snapshot(); HS.applyAction(g, 1, a); this.after(); };
+        if (a.type === 'attack') this.animateAttack(a.a, a.d).then(go);
+        else setTimeout(go, a.type === 'play' ? 450 : 0);
+      }, 650);
     },
 
     checkOverlays() {
@@ -361,185 +377,342 @@
       const hideOwn = this.mode === 'hotseat' && this.shownSeat !== me;
       const sel = this.sel;
       const tgt = new Set(sel && sel.targets ? sel.targets.map((t) => t.id) : []);
-      const selId = sel ? sel.id : null;
-      const cls = (e) => {
+      const known = this.knownIds || new Set();
+      const nowIds = new Set();
+      const mark = (e) => {
         const c = [];
         if (tgt.has(e.id)) c.push('targetable');
-        if (selId === e.id) c.push('selected');
+        if (sel && sel.id === e.id) c.push('selected');
         if (this.flashIds && this.flashIds.includes(e.id)) c.push('flash');
         return c.join(' ');
       };
       const floatFor = (e) => {
         if (!this.prev || this.prev[e.id] == null) return '';
         const d = g.hp(e) + (e.armor || 0) - this.prev[e.id];
-        if (!d) return '';
-        return `<span class="float ${d < 0 ? 'dmg' : 'heal'}">${d > 0 ? '+' : ''}${d}</span>`;
+        return d ? `<span class="float ${d < 0 ? 'dmg' : 'heal'}">${d > 0 ? '+' : ''}${d}</span>` : '';
       };
       const minion = (m) => {
         const d = g.def(m);
+        nowIds.add(m.id);
         const ic = [];
-        if (!m.silenced && d.deathrattle || m.ench.some((x) => x.card && HS.CARDS[x.card] && HS.CARDS[x.card].deathrattle)) ic.push('☠');
-        if (!m.silenced && (d.triggers || d.aura || d.costAura || d.auraKw)) ic.push('ϟ');
-        if (g.has(m, 'windfury') || g.has(m, 'megaWindfury')) ic.push('≋');
-        if (g.has(m, 'poison')) ic.push('☣');
-        if (g.has(m, 'immune')) ic.push('✪');
-        if (g.spellPower(m.owner) && (d.spellDamage && !m.silenced || m.ench.some((x) => x.sd))) ic.push('✷');
-        if (g.has(m, 'elusive')) ic.push('◌');
-        if (m.ench.length) ic.push('•');
+        if ((!m.silenced && d.deathrattle) || m.ench.some((x) => x.card && HS.CARDS[x.card] && HS.CARDS[x.card].deathrattle)) ic.push('<i title="Todesröcheln">☠</i>');
+        if (!m.silenced && (d.triggers || d.aura || d.costAura || d.auraKw)) ic.push('<i title="Effekt">ϟ</i>');
+        if (g.has(m, 'windfury') || g.has(m, 'megaWindfury')) ic.push('<i title="Windzorn">≋</i>');
+        if (g.has(m, 'poison')) ic.push('<i title="Giftig">☣</i>');
+        if (g.has(m, 'immune')) ic.push('<i title="Immun">✪</i>');
+        if (g.has(m, 'elusive')) ic.push('<i title="Nicht als Ziel wählbar">◌</i>');
+        if ((!m.silenced && d.spellDamage) || m.ench.some((x) => x.sd)) ic.push('<i title="Zauberschaden">✷</i>');
         const a = g.atk(m), h = g.hp(m), mx = g.maxHp(m);
-        const ready = act && m.owner === g.cur && g.canAttack(m) && !sel;
-        const k = ['minion', 'cls-' + d.cls, cls(m)];
+        const k = ['minion', 'cls-' + d.cls, mark(m)];
         if (g.has(m, 'taunt')) k.push('taunt');
         if (m.kw.divineShield) k.push('ds');
         if (g.has(m, 'stealth')) k.push('stealth');
         if (m.frozen) k.push('frozen');
         if (m.silenced) k.push('silenced');
-        if (ready) k.push('ready');
+        if (act && m.owner === g.cur && g.canAttack(m) && !sel) k.push('ready');
         if (m.owner === g.cur && m.exhausted && !g.has(m, 'charge')) k.push('sleep');
-        return `<div class="${k.join(' ')}" data-eid="${m.id}"><div class="micons">${ic.join(' ')}</div><div class="mname">${esc(d.name)}</div>
-          <div class="matk ${a > (d.atk || 0) ? 'hpbuff' : ''}">${a}</div><div class="mhp ${h < mx ? 'hpdmg' : mx > d.hp ? 'hpbuff' : ''}">${h}</div>${floatFor(m)}</div>`;
+        if (!known.has(m.id)) k.push('enter');
+        if (d.rarity === 'legendary') k.push('legend');
+        return `<div class="${k.join(' ')}" data-eid="${m.id}"><div class="m-art">${artTag(m.card, d.cls)}</div>
+          <div class="m-icons">${ic.join('')}</div>
+          <div class="m-atk ${a > (d.atk || 0) ? 'up' : a < (d.atk || 0) ? 'dn' : ''}">${a}</div><div class="m-hp ${h < mx ? 'dn' : mx > d.hp ? 'up' : ''}">${h}</div>${floatFor(m)}</div>`;
       };
       const boardHTML = (i) => {
         const ms = g.board(i);
+        const drop = i === me && this.dropPos != null ? this.dropPos : -1;
+        let s = '';
+        ms.forEach((m, k) => { if (k === drop) s += '<div class="gap"></div>'; s += minion(m); });
+        if (drop >= ms.length) s += '<div class="gap"></div>';
         if (sel && sel.kind === 'pos' && i === me) {
-          let s = '<div class="slot" data-slot="0"></div>';
+          s = '<div class="slot" data-slot="0"></div>';
           ms.forEach((m, k) => { s += minion(m) + `<div class="slot" data-slot="${k + 1}"></div>`; });
-          return s;
         }
-        return ms.map(minion).join('');
+        return s || '<div class="empty-board"></div>';
       };
       const heroHTML = (i) => {
         const h = g.hero(i);
         const p = g.P(i);
         const a = g.atk(h);
-        const k = ['hero', 'cls-' + p.cls, cls(h)];
+        const k = ['hero', 'cls-' + p.cls, mark(h)];
         if (h.frozen) k.push('frozen');
         if (g.has(h, 'immune')) k.push('immune');
         if (act && i === g.cur && g.canAttack(h) && !sel) k.push('ready');
-        const secrets = p.secrets.map((id) => {
-          const s = g.ent(id);
-          const show = i === me && !hideOwn;
-          return `<div class="secret" title="${show ? esc(g.def(s).name) : 'Geheimnis'}">?</div>`;
-        }).join('');
-        return `<div class="${k.join(' ')}" data-eid="${h.id}"><div class="secrets">${secrets}</div><div class="hname">${esc(p.name)}</div><span class="glyph">${GLYPH[p.cls]}</span>
-          ${a > 0 ? `<div class="hatk">${a}</div>` : ''}${h.armor ? `<div class="harm">${h.armor}</div>` : ''}<div class="hhp">${g.hp(h)}</div>${floatFor(h)}</div>`;
+        const secrets = p.secrets.map((id) => `<div class="secret" data-eid="${id}" title="${i === me && !hideOwn ? esc(g.def(g.ent(id)).name) : 'Geheimnis'}">?</div>`).join('');
+        return `<div class="${k.join(' ')}" data-eid="${h.id}"><div class="h-art"><span class="noart">${GLYPH[p.cls]}</span></div><div class="h-frame"></div>
+          <div class="h-name">${esc(p.name)}</div><div class="secrets">${secrets}</div>
+          ${a > 0 ? `<div class="h-atk">${a}</div>` : ''}${h.armor ? `<div class="h-arm">${h.armor}</div>` : ''}<div class="h-hp ${h.damage ? 'dn' : ''}">${g.hp(h)}</div>${floatFor(h)}</div>`;
       };
       const powerHTML = (i) => {
         const pw = g.power(i);
         const d = g.def(pw);
         const usable = act && i === g.cur && g.canPower(i) && !sel;
-        return `<div class="power ${g.P(i).powerUses ? 'used' : ''} ${usable ? 'playable' : ''} ${sel && sel.kind === 'power' && i === me ? 'selected' : ''}" data-power="${i}" data-eid="${pw.id}"><div class="pcost">${d.cost}</div>${esc(d.name)}</div>`;
+        return `<div class="power cls-${g.P(i).cls} ${g.P(i).powerUses ? 'used' : ''} ${usable ? 'playable' : ''} ${sel && sel.kind === 'power' && i === me ? 'selected' : ''}" data-power="${i}" data-eid="${pw.id}"><div class="p-cost">${d.cost}</div><div class="p-name">${esc(d.name)}</div></div>`;
       };
       const weaponHTML = (i) => {
         const w = g.weapon(i);
         if (!w) return '<div class="weapon empty"></div>';
-        return `<div class="weapon" data-eid="${w.id}">${esc(g.def(w).name)}<div class="watk">${g.atk(w)}</div><div class="wdur">${g.hp(w)}</div></div>`;
+        return `<div class="weapon" data-eid="${w.id}"><div class="w-art">${artTag(w.card, g.def(w).cls)}</div><div class="w-atk">${g.atk(w)}</div><div class="w-dur">${g.hp(w)}</div></div>`;
       };
       const manaHTML = (i) => {
         const p = g.P(i);
         let s = '';
-        for (let k = 0; k < Math.max(p.maxMana, p.mana); k++) s += `<i class="${k < p.mana ? '' : k < p.maxMana - p.locked || k >= p.maxMana ? 'spent' : 'locked'}"></i>`;
-        return `<div><b>${p.mana}/${p.maxMana}</b> Mana${p.locked ? ` · ${p.locked} gesperrt` : ''}${p.overload ? ` · Überladung ${p.overload}` : ''}</div><div class="mana">${s}</div>`;
+        for (let k = 0; k < 10; k++) {
+          const st = k < p.mana ? 'full' : k < p.maxMana - p.locked ? 'spent' : k < p.maxMana ? 'locked' : 'none';
+          s += `<i class="${st}"></i>`;
+        }
+        return `<div class="mana"><b>${p.mana}<small>/${p.maxMana}</small></b><span class="crystals">${s}</span>${p.overload ? `<em>+${p.overload} Überladung</em>` : ''}</div>`;
       };
-      const infoHTML = (i) => `<div class="info">${manaHTML(i)}<div>Deck: ${g.P(i).deck.length} · Hand: ${g.P(i).hand.length}</div>${g.P(i).fatigue ? `<div>Erschöpfung: ${g.P(i).fatigue}</div>` : ''}</div>`;
-      const myHand = g.hand(me).map((c) => {
-        if (hideOwn) return '<div class="card back"></div>';
+      const pile = (i) => `<div class="pile" title="Deck"><div class="pile-cards">${g.P(i).deck.length}</div><span>Deck</span></div>`;
+      const handCards = g.hand(me);
+      const n = handCards.length;
+      const myHand = handCards.map((c, i) => {
+        const off = i - (n - 1) / 2;
+        const style = `--rot:${(off * Math.min(5, 34 / Math.max(n, 1))).toFixed(1)}deg;--dy:${(off * off * 3).toFixed(0)}px;--i:${i}`;
+        if (hideOwn) return `<div class="card back" style="${style}"></div>`;
         const pl = act && g.cur === me && g.canPlay(me, c) && !sel;
-        return cardHTML(g, c, null, `${pl ? 'playable' : ''} ${selId === c.id ? 'selected' : ''}`);
+        const dragging = this.drag && this.drag.e === c && this.drag.moved;
+        return cardHTML(g, c, null, `${pl ? 'playable' : ''} ${sel && sel.id === c.id ? 'selected' : ''} ${dragging ? 'lifted' : ''}`).replace('<div class="card', `<div style="${style}" class="card`);
       }).join('');
-      const oppHand = g.hand(op).map(() => '<div class="card back"></div>').join('');
+      const on = g.hand(op).length;
+      const oppHand = g.hand(op).map((c, i) => `<div class="card back" style="--rot:${((i - (on - 1) / 2) * -4).toFixed(1)}deg"></div>`).join('');
       const myTurn = g.cur === me;
       const anyMove = act && myTurn && HS.legalActions(g, me).length > 0;
-      const status = g.s.phase === 'over' ? 'Spiel beendet' : this.busy ? 'Sende …' : myTurn ? (this.mode === 'hotseat' ? `${esc(g.P(me).name)} ist am Zug` : 'Du bist am Zug') : `${esc(g.P(g.cur).name)} ist am Zug`;
-      const hint = sel ? (sel.kind === 'pos' ? 'Wähle einen Platz für den Diener.' : sel.kind === 'attack' ? 'Wähle ein Angriffsziel.' : 'Wähle ein Ziel.') + ' (Rechtsklick/Esc = Abbrechen)' : '';
+      const status = g.s.phase === 'over' ? 'Spiel beendet' : this.busy ? 'Sende …' : myTurn ? (this.mode === 'hotseat' ? `${esc(g.P(me).name)} ist am Zug` : 'Dein Zug') : `${esc(g.P(g.cur).name)} ist am Zug`;
+      const hint = sel ? (sel.kind === 'pos' ? 'Platz für den Diener wählen' : sel.kind === 'attack' ? 'Angriffsziel wählen' : 'Ziel wählen') + ' · Rechtsklick/Esc bricht ab' : act && myTurn ? 'Karten aufs Brett ziehen · Diener auf Ziele ziehen' : '';
+      const lastShow = this.lastPlayed ? cardHTML(null, null, this.lastPlayed.card) : '';
       app.innerHTML = `<div class="game">
+        <aside class="preview"><div class="pv-title">Vorschau</div><div class="pv-card" id="pv">${lastShow}</div><div class="pv-sub" id="pvsub">${this.lastPlayed ? esc(this.lastPlayed.who) + ' spielte' : 'Über eine Karte fahren'}</div></aside>
         <div class="table">
           <div class="opp-hand">${oppHand}</div>
-          <div class="side opp">${infoHTML(op)}${weaponHTML(op)}${heroHTML(op)}${powerHTML(op)}</div>
+          <div class="hero-row opp">${pile(op)}${manaHTML(op)}${weaponHTML(op)}${heroHTML(op)}${powerHTML(op)}</div>
           <div class="board opp">${boardHTML(op)}</div>
-          <div class="board me">${boardHTML(me)}</div>
-          <div class="side me">${infoHTML(me)}${weaponHTML(me)}${heroHTML(me)}${powerHTML(me)}</div>
-          <div class="hand ${g.P(me).hand.length > 7 ? 'cramped' : ''}">${myHand}</div>
+          <div class="midline"><button class="turnbtn ${act && myTurn && !anyMove ? 'ready' : ''} ${myTurn ? 'mine' : ''}" id="endturn" ${act && myTurn ? '' : 'disabled'}>${myTurn ? 'Zug beenden' : 'Gegnerzug'}</button></div>
+          <div class="board me" id="myboard">${boardHTML(me)}</div>
+          <div class="hero-row me">${pile(me)}${manaHTML(me)}${weaponHTML(me)}${heroHTML(me)}${powerHTML(me)}</div>
+          <div class="hand ${n > 7 ? 'cramped' : ''}" id="myhand">${myHand}</div>
+          <div class="turn-banner" id="banner"></div>
         </div>
-        <div class="sidebar">
-          <div><b>${status}</b> · Runde ${Math.ceil(g.s.turn / 2)}</div>
+        <aside class="sidebar">
+          <div class="status"><b>${status}</b><span>Runde ${Math.ceil(g.s.turn / 2)}</span></div>
           <div class="timer"></div>
-          <button class="turnbtn ${act && myTurn && !anyMove ? 'ready' : ''}" id="endturn" ${act && myTurn ? '' : 'disabled'}>Zug beenden</button>
           <div class="hint">${hint}</div>
           <div class="log">${g.s.log.slice(-120).map((l) => `<div class="${l.startsWith('—') ? 'turn' : ''}">${esc(l)}</div>`).join('')}</div>
           <div class="row"><button id="concede" class="danger">Aufgeben</button><button id="tomenu">Menü</button></div>
-        </div></div>`;
+        </aside></div>`;
       const log = app.querySelector('.log');
       log.scrollTop = log.scrollHeight;
+      this.knownIds = nowIds;
       this.prev = null;
       this.flashIds = null;
+      if (myTurn && act && this.bannerTurn !== g.s.turn) { this.bannerTurn = g.s.turn; this.banner('Dein Zug'); }
       this.bind();
     },
+    banner(text) {
+      const b = app.querySelector('#banner');
+      if (!b) return;
+      b.textContent = text;
+      b.classList.remove('show');
+      void b.offsetWidth;
+      b.classList.add('show');
+    },
+    showcase(cardId, who) {
+      this.lastPlayed = { card: cardId, who };
+      const el = document.createElement('div');
+      el.className = 'showcase';
+      el.innerHTML = cardHTML(null, null, cardId);
+      document.body.append(el);
+      setTimeout(() => el.remove(), 1700);
+    },
     bind() {
-      const g = this.g;
-      app.querySelector('#endturn').onclick = () => { if (this.canAct() && g.cur === this.view()) this.act({ type: 'end' }); };
-      app.querySelector('#concede').onclick = () => {
-        if (g.s.phase === 'over') return;
-        ask('Wirklich aufgeben?', () => this.concede());
-      };
-      app.querySelector('#tomenu').onclick = () => { if (g.s.phase === 'over') this.menu(); else ask('Partie verlassen?', () => this.menu()); };
+      app.querySelector('#endturn').onclick = () => { if (this.canAct() && this.g.cur === this.view()) this.act({ type: 'end' }); };
+      app.querySelector('#concede').onclick = () => { if (this.g.s.phase !== 'over') ask('Wirklich aufgeben?', () => this.concede()); };
+      app.querySelector('#tomenu').onclick = () => { if (this.g.s.phase === 'over') this.menu(); else ask('Partie verlassen?', () => this.menu()); };
       app.querySelectorAll('.slot').forEach((s) => (s.onclick = (ev) => { ev.stopPropagation(); this.withPos(+s.dataset.slot); }));
-      app.querySelector('.table').onclick = (ev) => this.click(ev);
-      app.querySelector('.table').oncontextmenu = (ev) => { ev.preventDefault(); this.cancel(); };
+      const table = app.querySelector('.table');
+      table.onpointerdown = (ev) => this.down(ev);
+      table.oncontextmenu = (ev) => { ev.preventDefault(); this.cancel(); };
     },
     concede() {
-        const g = this.g;
-        if (!g || g.s.phase === 'over') return;
-        const seat = this.mode === 'hotseat' ? this.view() : this.seat;
-        if (this.mode === 'online') { HS.Net.send({ type: 'concede' }).catch((e) => toast(e.message)); return; }
-        this.act({ type: 'concede' }, seat);
-    },
-    cancel() { if (this.sel) { this.sel = null; this.render(); } },
-
-    click(ev) {
       const g = this.g;
-      const t = ev.target.closest('[data-eid],[data-power]');
-      if (!this.canAct()) { if (t) this.inspect(t); return; }
+      if (!g || g.s.phase === 'over') return;
+      const seat = this.mode === 'hotseat' ? this.view() : this.seat;
+      if (this.mode === 'online') { HS.Net.send({ type: 'concede' }).catch((e) => toast(e.message)); return; }
+      this.act({ type: 'concede' }, seat);
+    },
+    cancel() { this.sel = null; this.dropPos = null; this.arrow(null); if (this.g) this.render(); },
+
+    /* ---------- Zeigen, Ziehen, Zielen ---------- */
+    center(el) { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; },
+    arrow(from, to, ok) {
+      let svg = document.getElementById('arrow');
+      if (!from) { if (svg) svg.style.display = 'none'; return; }
+      if (!svg) {
+        svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.id = 'arrow';
+        svg.innerHTML = '<defs><marker id="ah" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker></defs><path id="arrowpath" marker-end="url(#ah)"/><circle id="arrowdot" r="7"/>';
+        document.body.append(svg);
+      }
+      svg.style.display = 'block';
+      svg.classList.toggle('ok', !!ok);
+      const [x0, y0] = from, [x1, y1] = to;
+      const mx = (x0 + x1) / 2, my = Math.min(y0, y1) - Math.abs(x1 - x0) * 0.25 - 40;
+      svg.querySelector('#arrowpath').setAttribute('d', `M${x0},${y0} Q${mx},${my} ${x1},${y1}`);
+      const dot = svg.querySelector('#arrowdot');
+      dot.setAttribute('cx', x0); dot.setAttribute('cy', y0);
+    },
+    targetAt(x, y) {
+      const el = document.elementFromPoint(x, y);
+      const t = el && el.closest('[data-eid]');
+      if (!t || !this.sel || !this.sel.targets) return null;
+      return this.sel.targets.find((e) => e.id === +t.dataset.eid) || null;
+    },
+    boardPosAt(x) {
+      const els = [...app.querySelectorAll('#myboard .minion')];
+      let pos = 0;
+      for (const el of els) { const [cx] = this.center(el); if (x > cx) pos++; }
+      return pos;
+    },
+    down(ev) {
+      if (ev.button === 2) return;
+      const g = this.g;
+      const t = ev.target.closest('[data-eid],[data-power],.slot');
+      if (!t || t.classList.contains('slot')) { if (this.sel && this.sel.kind !== 'pos') this.cancel(); return; }
+      if (!this.canAct()) return;
       const me = this.view();
-      const sel = this.sel;
-      if (sel && sel.targets) {
-        const id = t ? +t.dataset.eid : null;
-        const hit = sel.targets.find((x) => x.id === id);
-        if (hit) return sel.finish(hit);
+      if (this.sel && this.sel.targets) {
+        const hit = this.sel.targets.find((x) => x.id === +t.dataset.eid);
+        if (hit) { const f = this.sel.finish; this.arrow(null); f(hit); } else this.cancel();
+        return;
+      }
+      if (this.sel && this.sel.kind === 'pos') return this.cancel();
+      let kind = null;
+      const e = t.dataset.power != null ? g.power(+t.dataset.power) : g.ent(+t.dataset.eid);
+      if (!e) return;
+      if (t.dataset.power != null) { if (+t.dataset.power === me && g.canPower(me)) kind = 'power'; }
+      else if (e.zone === 'hand' && e.owner === me) {
+        if (!g.canPlay(me, e)) { toast(g.cost(e) > g.P(me).mana ? 'Nicht genug Mana.' : 'Diese Karte kann gerade nicht gespielt werden.'); return; }
+        kind = 'card';
+      } else if (e.owner === me && g.inPlay(e) && g.canAttack(e)) kind = 'attack';
+      if (!kind) return;
+      ev.preventDefault();
+      this.drag = { kind, e, el: t, x0: ev.clientX, y0: ev.clientY, moved: false, from: this.center(t) };
+      const move = (m) => this.dmove(m);
+      const up = (u) => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); this.dup(u); };
+      addEventListener('pointermove', move);
+      addEventListener('pointerup', up);
+      if (kind === 'attack') {
+        this.sel = { kind: 'attack', id: e.id, targets: g.attackTargets(e), finish: (x) => this.doAttack(e.id, x.id) };
+        this.render();
+      } else if (kind === 'power') {
+        const tl = g.powerTargets(me);
+        if (tl) { this.sel = { kind: 'power', targets: tl, finish: (x) => this.act({ type: 'power', target: x.id }) }; this.render(); }
+      }
+    },
+    dmove(ev) {
+      const d = this.drag;
+      if (!d) return;
+      if (!d.moved && Math.hypot(ev.clientX - d.x0, ev.clientY - d.y0) < 8) return;
+      if (!d.moved) {
+        d.moved = true;
+        if (d.kind === 'card') {
+          d.ghost = document.createElement('div');
+          d.ghost.className = 'ghost';
+          d.ghost.innerHTML = cardHTML(this.g, d.e);
+          document.body.append(d.ghost);
+          this.render();
+        }
+      }
+      if (d.kind === 'card') {
+        const g = this.g, c = g.def(d.e);
+        const handTop = app.querySelector('#myhand').getBoundingClientRect().top;
+        const above = ev.clientY < handTop - 10;
+        const tl = !c.choose ? g.targetsFor(d.e) : null;
+        if (c.type !== 'minion' && tl && tl.length && above) {
+          d.ghost.style.display = 'none';
+          if (!this.sel) { this.sel = { kind: 'target', id: d.e.id, targets: tl, finish: (x) => this.act({ type: 'play', id: d.e.id, target: x.id }) }; this.render(); }
+          this.arrow([d.x0, handTop], [ev.clientX, ev.clientY], !!this.targetAt(ev.clientX, ev.clientY));
+          return;
+        }
+        if (this.sel && this.sel.kind === 'target') { this.sel = null; this.arrow(null); this.render(); }
+        d.ghost.style.display = '';
+        d.ghost.style.left = ev.clientX + 'px';
+        d.ghost.style.top = ev.clientY + 'px';
+        d.ghost.classList.toggle('armed', above);
+        if (c.type === 'minion') {
+          const bd = app.querySelector('#myboard').getBoundingClientRect();
+          const pos = above && ev.clientY > bd.top - 60 ? this.boardPosAt(ev.clientX) : null;
+          if (pos !== this.dropPos) { this.dropPos = pos; this.render(); }
+        }
+        return;
+      }
+      if (this.sel && this.sel.targets) this.arrow(d.from, [ev.clientX, ev.clientY], !!this.targetAt(ev.clientX, ev.clientY));
+    },
+    dup(ev) {
+      const d = this.drag;
+      this.drag = null;
+      if (!d) return;
+      if (d.ghost) d.ghost.remove();
+      const g = this.g;
+      const me = this.view();
+      if (!d.moved) {
+        /* einfacher Klick: Auswahl-Modus mit Pfeil, der der Maus folgt */
+        if (d.kind === 'card') return this.startPlay(d.e);
+        if (d.kind === 'power' && !g.powerTargets(me)) return this.act({ type: 'power' });
+        if (this.sel && this.sel.targets) this.followArrow(d.from);
+        return;
+      }
+      const hit = this.targetAt(ev.clientX, ev.clientY);
+      if (d.kind === 'attack' || d.kind === 'power') {
+        this.arrow(null);
+        if (hit) return this.sel.finish(hit);
+        if (d.kind === 'power' && !this.sel) return;
         return this.cancel();
       }
-      if (sel && sel.kind === 'pos') return this.cancel();
-      if (!t) return;
-      if (t.dataset.power != null) {
-        if (+t.dataset.power !== me || !g.canPower(me)) return this.inspect(t);
-        const tl = g.powerTargets(me);
-        if (!tl) return this.act({ type: 'power' });
-        this.sel = { kind: 'power', targets: tl, finish: (x) => this.act({ type: 'power', target: x.id }) };
-        return this.render();
+      const c = g.def(d.e);
+      const handTop = app.querySelector('#myhand').getBoundingClientRect().top;
+      const pos = this.dropPos;
+      this.dropPos = null;
+      if (this.sel && this.sel.kind === 'target') {
+        this.arrow(null);
+        if (hit) return this.sel.finish(hit);
+        return this.cancel();
       }
-      const e = g.ent(+t.dataset.eid);
-      if (!e) return;
-      if (e.zone === 'hand' && e.owner === me) {
-        if (!g.canPlay(me, e)) { toast(g.cost(e) > g.P(me).mana ? 'Nicht genug Mana.' : 'Diese Karte kann gerade nicht gespielt werden.'); return; }
-        return this.startPlay(e);
-      }
-      if (e.owner === me && g.inPlay(e) && g.canAttack(e)) {
-        this.sel = { kind: 'attack', id: e.id, targets: g.attackTargets(e), finish: (x) => this.act({ type: 'attack', a: e.id, d: x.id }) };
-        return this.render();
-      }
-      this.inspect(t);
+      if (ev.clientY > handTop - 10) { this.render(); return; }
+      this.dropAt = [ev.clientX, ev.clientY];
+      if (c.choose) return this.startPlay(d.e, c.type === 'minion' ? (pos == null ? g.P(me).board.length : pos) : undefined);
+      this.sel = { kind: 'pos', id: d.e.id, card: d.e, choice: undefined };
+      this.withPos(c.type === 'minion' ? (pos == null ? g.P(me).board.length : pos) : undefined);
     },
-    startPlay(e) {
+    followArrow(from) {
+      const mv = (m) => { if (!this.sel || !this.sel.targets) { removeEventListener('pointermove', mv); this.arrow(null); return; } this.arrow(from, [m.clientX, m.clientY], !!this.targetAt(m.clientX, m.clientY)); };
+      addEventListener('pointermove', mv);
+    },
+    doAttack(a, d) {
+      this.animateAttack(a, d).then(() => this.act({ type: 'attack', a, d }));
+    },
+    animateAttack(aId, dId) {
+      const a = app.querySelector(`[data-eid="${aId}"]`), d = app.querySelector(`[data-eid="${dId}"]`);
+      if (!a || !d || !a.animate || matchMedia('(prefers-reduced-motion: reduce)').matches) return Promise.resolve();
+      const [ax, ay] = this.center(a), [dx, dy] = this.center(d);
+      const k = 0.75;
+      a.style.zIndex = 30;
+      return a.animate([{ transform: 'none' }, { transform: `translate(${(dx - ax) * k}px, ${(dy - ay) * k}px) scale(1.12)` }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.5,0,.3,1)' }).finished.catch(() => {});
+    },
+    startPlay(e, presetPos) {
       const g = this.g;
       const d = g.def(e);
       const me = this.view();
       if (d.choose) {
         const dlg = showModal(`<h2>${esc(d.name)} – Wählt aus:</h2><div class="cards">${d.choose.map((o, i) => {
           const ok = g.canPlay(me, e, i);
-          return `<div class="card cls-${d.cls} type-spell" data-i="${i}" style="${ok ? '' : 'opacity:.35;pointer-events:none'}"><div class="art"><span class="glyph">${GLYPH[d.cls]}</span></div><div class="name">${esc(o.name)}</div><div class="ctext">${fmtText(o.text.replace(/\$(\d+)/g, (_, n) => { const v = g.spellDmg(e, +n); return v !== +n ? `*${v}*` : n; }))}</div></div>`;
+          return `<div class="card cls-${d.cls} type-spell choice" data-i="${i}" style="${ok ? '' : 'opacity:.35;pointer-events:none'}"><div class="c-name">${esc(o.name)}</div><div class="c-art">${artTag(d.id, d.cls)}</div><div class="c-type">Wählt aus</div><div class="c-text"><div>${fmtText(o.text.replace(/\$(\d+)/g, (_, n) => { const v = g.spellDmg(e, +n); return v !== +n ? `*${v}*` : n; }))}</div></div></div>`;
         }).join('')}</div><button id="x">Abbrechen</button>`);
-        dlg.querySelector('#x').onclick = () => hideModal();
-        dlg.querySelectorAll('[data-i]').forEach((c) => (c.onclick = () => { hideModal(); this.continuePlay(e, +c.dataset.i); }));
+        dlg.querySelector('#x').onclick = () => { hideModal(); this.cancel(); };
+        dlg.querySelectorAll('[data-i]').forEach((c) => (c.onclick = () => {
+          hideModal();
+          if (presetPos !== undefined || d.type !== 'minion') { this.sel = { kind: 'pos', id: e.id, card: e, choice: +c.dataset.i }; this.withPos(presetPos); }
+          else this.continuePlay(e, +c.dataset.i);
+        }));
         return;
       }
       this.continuePlay(e, undefined);
@@ -547,11 +720,8 @@
     continuePlay(e, choice) {
       const g = this.g;
       const me = this.view();
-      if (g.def(e).type === 'minion' && g.P(me).board.length > 0) {
-        this.sel = { kind: 'pos', id: e.id, card: e, choice };
-        return this.render();
-      }
       this.sel = { kind: 'pos', id: e.id, card: e, choice };
+      if (g.def(e).type === 'minion' && g.P(me).board.length > 0) return this.render();
       this.withPos(g.def(e).type === 'minion' ? 0 : undefined);
     },
     withPos(pos) {
@@ -563,22 +733,32 @@
       const base = { type: 'play', id: e.id, choice: s.choice, pos };
       if (tl && tl.length) {
         this.sel = { kind: 'target', id: e.id, targets: tl, finish: (x) => this.act(Object.assign(base, { target: x.id })) };
-        return this.render();
+        this.render();
+        const from = this.dropAt || this.center(app.querySelector(`#myhand [data-eid="${e.id}"]`) || app.querySelector('#myboard'));
+        this.dropAt = null;
+        this.followArrow(from);
+        return;
       }
       this.act(base);
     },
-    inspect(t) {
-      const e = this.g.ent(+t.dataset.eid);
-      if (!e) return;
-      this.showTip(e, t.getBoundingClientRect());
-      clearTimeout(this._tipT);
-      this._tipT = setTimeout(() => tip.classList.add('hidden'), 2500);
-    },
-    showTip(e, rect) {
+    preview(e) {
       const g = this.g;
-      if (!g || (e.zone === 'hand' && e.owner !== this.view()) || (e.zone === 'hand' && this.mode === 'hotseat' && this.shownSeat !== e.owner)) return;
-      if (e.zone === 'secret' || e.zone === 'deck') return;
+      const pv = document.getElementById('pv');
+      const sub = document.getElementById('pvsub');
+      if (!pv || !e) return;
+      if ((e.zone === 'hand' && (e.owner !== this.view() || (this.mode === 'hotseat' && this.shownSeat !== e.owner))) || e.zone === 'deck') return;
+      if (e.zone === 'secret' && (e.owner !== this.view() || (this.mode === 'hotseat' && this.shownSeat !== e.owner))) { pv.innerHTML = '<div class="card back"></div>'; sub.textContent = 'Verdecktes Geheimnis'; return; }
       const extra = [];
+      if (g.isHero(e)) {
+        pv.innerHTML = `<div class="heroinfo cls-${g.P(e.owner).cls}"><b>${esc(g.P(e.owner).name)}</b><span>Leben ${g.hp(e)}/${g.maxHp(e)}</span>${e.armor ? `<span>Rüstung ${e.armor}</span>` : ''}${g.atk(e) ? `<span>Angriff ${g.atk(e)}</span>` : ''}</div>`;
+        sub.textContent = HS.CLASSES[g.P(e.owner).cls].name;
+        return;
+      }
+      if (g.def(e).type === 'power') {
+        pv.innerHTML = `<div class="heroinfo"><b>${esc(g.def(e).name)}</b><span>Kosten ${g.def(e).cost}</span><p>${fmtText(g.text(e))}</p></div>`;
+        sub.textContent = 'Heldenfähigkeit';
+        return;
+      }
       if (g.isMinion(e)) {
         if (e.frozen) extra.push('Eingefroren');
         if (e.silenced) extra.push('Zum Schweigen gebracht');
@@ -589,28 +769,15 @@
           if (x.hp) bits.push('+' + x.hp + ' Leben');
           if (x.setAtk != null) bits.push('Angriff = ' + x.setAtk);
           if (x.setHp != null) bits.push('Leben = ' + x.setHp);
-          if (x.kw) bits.push(x.kw.join(', '));
+          if (x.kw && x.kw.length) bits.push(x.kw.map((k) => ({ taunt: 'Spott', stealth: 'Verstohlenheit', immune: 'Immun', divineShield: 'Gottesschild', windfury: 'Windzorn', charge: 'Ansturm' }[k] || k)).join(', '));
           if (x.sd) bits.push('Zauberschaden +' + x.sd);
-          if (x.card && HS.CARDS[x.card] && HS.CARDS[x.card].text) bits.push(HS.CARDS[x.card].text);
-          else if (x.card) bits.push('Verzauberung');
-          if (x.expire) bits.push('(vorübergehend)');
+          if (x.card && HS.CARDS[x.card] && HS.CARDS[x.card].text) bits.push(HS.CARDS[x.card].text.replace(/<[^>]+>/g, ''));
+          if (x.expire) bits.push('(diesen Zug)');
           if (bits.length) extra.push(bits.join(' '));
         }
       }
-      let html;
-      if (g.isHero(e)) html = `<div class="tipx"><b>${esc(g.P(e.owner).name)}</b><br>Leben ${g.hp(e)}/${g.maxHp(e)}${e.armor ? ` · Rüstung ${e.armor}` : ''}</div>`;
-      else if (g.def(e).type === 'power') html = `<div class="tipx"><b>${esc(g.def(e).name)}</b> (${g.def(e).cost})<br>${fmtText(g.text(e))}</div>`;
-      else html = cardHTML(g, e) + (extra.length ? `<div class="tipx">${extra.map(esc).join('<br>').replace(/&lt;(\/?)b&gt;/g, '<$1b>')}</div>` : '');
-      tip.innerHTML = html;
-      tip.classList.remove('hidden');
-      const w = 190, hgt = 280;
-      let x = rect.right + 10, y = rect.top - 40;
-      if (x + w > innerWidth) x = rect.left - w - 10;
-      if (x < 4) x = 4;
-      if (y + hgt > innerHeight) y = innerHeight - hgt - 4;
-      if (y < 4) y = 4;
-      tip.style.left = x + 'px';
-      tip.style.top = y + 'px';
+      pv.innerHTML = cardHTML(g, e) + (extra.length ? `<div class="pv-ench">${extra.map(esc).join('<br>')}</div>` : '');
+      sub.textContent = e.zone === 'hand' ? 'Auf deiner Hand' : e.owner === this.view() ? 'Deine Seite' : 'Gegnerische Seite';
     },
 
     /* ================= Deck-Editor ================= */
@@ -649,7 +816,7 @@
           && (!f.q || (c.name + ' ' + HS.textOf(c).replace(/<[^>]+>/g, '') + ' ' + (c.race ? HS.RACES[c.race] : '')).toLowerCase().includes(f.q.toLowerCase())));
         const grid = list.map((c) => {
           const n = count(c.id);
-          return `<div style="position:relative">${cardHTML(null, null, c.id, n >= HS.maxCopies(c) ? 'maxed' : '').replace('</div>', `</div>${n ? `<div class="count">${n}×</div>` : ''}`)}</div>`;
+          return cardHTML(null, null, c.id, n >= HS.maxCopies(c) ? 'maxed' : '').replace(/<\/div>$/, `${n ? `<div class="count">${n}×</div>` : ''}</div>`);
         }).join('');
         const grouped = {};
         for (const id of deck.cards) grouped[id] = (grouped[id] || 0) + 1;
@@ -728,25 +895,13 @@
     return { name: String(o.n || 'Importiertes Deck').slice(0, 40), cls: o.c, cards: HS.fixDeck(o.c, o.k.map(String)).slice(0, 30) };
   }
 
-  /* Tooltip beim Überfahren */
+  /* Vorschau beim Überfahren */
   document.addEventListener('mouseover', (ev) => {
-    if (UI.screen !== 'game' || !UI.g) {
-      const c = ev.target.closest('.grid [data-cid]');
-      if (c && UI.screen === 'deck') {
-        const d = HS.CARDS[c.dataset.cid];
-        tip.innerHTML = `<div class="tipx"><b>${esc(d.name)}</b> · ${HS.SETS[d.set]} · ${{ free: 'Basis', common: 'Gewöhnlich', rare: 'Selten', epic: 'Episch', legendary: 'Legendär' }[d.rarity]}</div>`;
-        const r = c.getBoundingClientRect();
-        tip.style.left = Math.min(innerWidth - 210, r.left) + 'px';
-        tip.style.top = Math.max(4, r.top - 40) + 'px';
-        tip.classList.remove('hidden');
-      } else tip.classList.add('hidden');
-      return;
-    }
-    const t = ev.target.closest('[data-eid]');
-    if (!t || t.closest('#modal')) { tip.classList.add('hidden'); return; }
-    if (t.closest('.hand') && !t.closest('.minion')) { tip.classList.add('hidden'); return; }
+    if (UI.screen !== 'game' || !UI.g || UI.drag) return;
+    const t = ev.target.closest('.table [data-eid]');
+    if (!t) return;
     const e = UI.g.ent(+t.dataset.eid);
-    if (e) UI.showTip(e, t.getBoundingClientRect());
+    if (e) UI.preview(e);
   });
   document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && UI.screen === 'game') UI.cancel(); });
 
