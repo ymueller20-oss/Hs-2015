@@ -1,0 +1,10 @@
+{
+  "name": "tavernenduell-2015",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sammelkartenduell mit Regeln und Kartenwerten bis einschließlich Schwarzfels (Stand 2015)",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/rules.js && node test/sim.js 3000 10"
+  }
+}

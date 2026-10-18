@@ -1,0 +1,746 @@
+/* Oberfläche: Menü, Deckwahl, Spiel, Deck-Editor */
+(function () {
+  'use strict';
+  const HS = window.HS;
+  const app = document.getElementById('app');
+  const modal = document.getElementById('modal');
+  const tip = document.getElementById('tip');
+  const toastEl = document.getElementById('toast');
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const GLYPH = { druid: '❦', hunter: '➶', mage: '✦', paladin: '✚', priest: '☀', rogue: '✧', shaman: '☈', warlock: '✺', warrior: '⚒', neutral: '◆' };
+  const CLASS_KEYS = Object.keys(HS.CLASSES);
+
+  /* ---------------- Speicher ---------------- */
+  const Store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* egal */ } },
+    decks() { return this.get('hs2015_decks', []); },
+    saveDecks(d) { this.set('hs2015_decks', d); },
+  };
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.remove('hidden');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => toastEl.classList.add('hidden'), 2600);
+  }
+  function showModal(html) { modal.innerHTML = `<div class="dialog">${html}</div>`; modal.classList.remove('hidden'); return modal.firstChild; }
+  function hideModal() { modal.classList.add('hidden'); modal.innerHTML = ''; }
+
+  /* ---------------- Kartendarstellung ---------------- */
+  function fmtText(t) { return t.replace(/\*(\d+)\*/g, '<b class="sd">$1</b>'); }
+  function cardHTML(g, e, cardId, extra) {
+    const d = e ? g.def(e) : HS.card(cardId);
+    const cost = e && g ? g.cost(e) : d.cost;
+    const costCls = cost < d.cost ? 'down' : cost > d.cost ? 'up' : '';
+    let stats = '';
+    if (d.type === 'minion' || d.type === 'weapon') {
+      const a = e && g ? g.atk(e) : d.atk;
+      const h = e && g ? g.hp(e) : d.hp;
+      stats = `<div class="catk ${a > d.atk ? 'up' : a < d.atk ? 'dn' : ''}">${a}</div><div class="chp ${h > d.hp ? 'up' : h < d.hp ? 'dn' : ''}">${h}</div>`;
+    }
+    const text = e && g ? g.text(e) : HS.textOf(d);
+    const race = d.race ? HS.RACES[d.race] : d.secret ? 'Geheimnis' : '';
+    return `<div class="card cls-${d.cls} rar-${d.rarity} type-${d.type} ${extra || ''}" ${e ? `data-eid="${e.id}"` : `data-cid="${d.id}"`}>
+      <div class="cost ${costCls}">${cost}</div>
+      <div class="art"><span class="glyph">${GLYPH[d.cls] || '◆'}</span></div>
+      ${d.rarity !== 'free' ? '<div class="gem"></div>' : ''}
+      <div class="name">${esc(d.name)}</div>
+      <div class="ctext">${fmtText(text)}</div>
+      <div class="race">${race}</div>${stats}</div>`;
+  }
+
+  /* ---------------- Deckauswahl ---------------- */
+  function deckOptions(cls) {
+    const opts = [];
+    for (const d of Store.decks()) if (!HS.validateDeck(d.cls, d.cards).length && (!cls || d.cls === cls)) opts.push({ v: 'user:' + d.id, t: `★ ${d.name} (${HS.CLASSES[d.cls].name})` });
+    HS.PRESETS.forEach((p, i) => { if (!cls || p.cls === cls) opts.push({ v: 'preset:' + i, t: `${p.name} (${HS.CLASSES[p.cls].name})` }); });
+    for (const k of CLASS_KEYS) if (!cls || k === cls) opts.push({ v: 'random:' + k, t: `Zufallsdeck – ${HS.CLASSES[k].name}` });
+    return opts;
+  }
+  function deckSelect(id, val) {
+    return `<select id="${id}">${deckOptions().map((o) => `<option value="${o.v}" ${o.v === val ? 'selected' : ''}>${esc(o.t)}</option>`).join('')}</select>`;
+  }
+  function resolveDeck(v) {
+    const [kind, key] = v.split(':');
+    if (kind === 'user') {
+      const d = Store.decks().find((x) => x.id === key);
+      if (d) return { cls: d.cls, cards: d.cards.slice(), name: d.name };
+    }
+    if (kind === 'preset') { const p = HS.PRESETS[+key]; return { cls: p.cls, cards: HS.fixDeck(p.cls, p.cards), name: p.name }; }
+    const cls = kind === 'random' ? key : 'mage';
+    return { cls, cards: HS.randomDeck(cls), name: 'Zufallsdeck' };
+  }
+
+  /* ================= Menü ================= */
+  const UI = {
+    screen: 'menu',
+    menu() {
+      this.stopGame();
+      this.screen = 'menu';
+      const online = HS.Net.available();
+      app.innerHTML = `<div class="menu">
+        <h1>Tavernenduell 2015</h1>
+        <div class="sub">Kartenduell mit allen Inhalten bis einschließlich Schwarzfels · ${HS.collectible().length} Karten · alle freigeschaltet</div>
+        <div class="menu-grid">
+          <div class="menu-tile" data-go="ai"><b>Gegen die KI</b><span>Übungspartie gegen den Computer.</span></div>
+          <div class="menu-tile" data-go="duel"><b>Duell</b><span>Gegen Freunde – online per Raumcode oder lokal an einem Gerät.</span></div>
+          <div class="menu-tile" data-go="editor"><b>Deck-Editor</b><span>Eigene Decks bauen, alle Karten verfügbar.</span></div>
+        </div>
+        ${online ? '' : '<p class="err" style="margin-top:20px">Online-Duelle brauchen den Server: <code>node server.js</code> starten und <code>http://localhost:8080</code> öffnen.</p>'}
+      </div>`;
+      app.querySelectorAll('[data-go]').forEach((t) => (t.onclick = () => this[t.dataset.go + 'Setup']()));
+    },
+
+    aiSetup() {
+      const last = Store.get('hs2015_last', {});
+      app.innerHTML = `<div class="menu"><h1>Gegen die KI</h1><div class="box">
+        <label>Dein Deck</label>${deckSelect('d0', last.ai0 || 'preset:2')}
+        <label>Deck der KI</label><select id="d1"><option value="any">Zufälliges Startdeck</option>${deckOptions().map((o) => `<option value="${o.v}" ${o.v === last.ai1 ? 'selected' : ''}>${esc(o.t)}</option>`).join('')}</select>
+        <div class="row end" style="margin-top:16px"><button id="back">Zurück</button><button class="primary" id="go">Spielen</button></div></div></div>`;
+      app.querySelector('#back').onclick = () => this.menu();
+      app.querySelector('#go').onclick = () => {
+        const v0 = app.querySelector('#d0').value, v1 = app.querySelector('#d1').value;
+        Store.set('hs2015_last', Object.assign(last, { ai0: v0, ai1: v1 }));
+        const d0 = resolveDeck(v0);
+        const d1 = v1 === 'any' ? resolveDeck('preset:' + Math.floor(Math.random() * HS.PRESETS.length)) : resolveDeck(v1);
+        d0.name = 'Du (' + HS.CLASSES[d0.cls].name + ')';
+        d1.name = 'KI (' + HS.CLASSES[d1.cls].name + ')';
+        this.startGame('ai', [d0, d1], { first: Math.random() < 0.5 ? 0 : 1 });
+      };
+    },
+
+    duelSetup() {
+      const last = Store.get('hs2015_last', {});
+      const online = HS.Net.available();
+      app.innerHTML = `<div class="menu"><h1>Duell</h1>
+        <div class="box"><h2>Online gegen Freunde</h2>
+          ${online ? `<label>Dein Name</label><input type="text" id="pname" maxlength="24" value="${esc(last.pname || '')}" placeholder="Spieler">
+          <label>Dein Deck</label>${deckSelect('od', last.od || 'preset:0')}
+          <div class="row" style="margin-top:14px"><button class="primary" id="create">Raum erstellen</button>
+            <input type="text" id="code" maxlength="5" placeholder="CODE" style="width:110px;text-transform:uppercase"><button id="join">Beitreten</button></div>
+          <div id="oerr" class="err"></div>` : '<p class="err">Nur verfügbar, wenn das Spiel über <code>node server.js</code> geöffnet wird.</p>'}
+        </div>
+        <div class="box"><h2>Lokal an einem Gerät</h2>
+          <label>Spieler 1</label><div class="row"><input type="text" id="n0" style="flex:1" value="${esc(last.n0 || 'Spieler 1')}">${deckSelect('l0', last.l0 || 'preset:7')}</div>
+          <label>Spieler 2</label><div class="row"><input type="text" id="n1" style="flex:1" value="${esc(last.n1 || 'Spieler 2')}">${deckSelect('l1', last.l1 || 'preset:8')}</div>
+          <div class="row end" style="margin-top:14px"><button class="primary" id="local">Lokales Duell starten</button></div>
+        </div>
+        <div class="row end" style="max-width:620px;margin:0 auto"><button id="back">Zurück</button></div></div>`;
+      app.querySelector('#back').onclick = () => this.menu();
+      app.querySelector('#local').onclick = () => {
+        const v = ['l0', 'l1'].map((k) => app.querySelector('#' + k).value);
+        const n = ['n0', 'n1'].map((k) => app.querySelector('#' + k).value.trim() || k);
+        Store.set('hs2015_last', Object.assign(last, { l0: v[0], l1: v[1], n0: n[0], n1: n[1] }));
+        const d = v.map(resolveDeck);
+        d[0].name = n[0]; d[1].name = n[1];
+        this.startGame('hotseat', d, { first: Math.random() < 0.5 ? 0 : 1 });
+      };
+      if (!online) return;
+      const err = app.querySelector('#oerr');
+      const getDeck = () => {
+        const v = app.querySelector('#od').value;
+        const name = app.querySelector('#pname').value.trim() || 'Spieler';
+        Store.set('hs2015_last', Object.assign(last, { od: v, pname: name }));
+        const d = resolveDeck(v);
+        return { cls: d.cls, cards: d.cards, player: name };
+      };
+      app.querySelector('#create').onclick = async () => {
+        try { const r = await HS.Net.create(getDeck(), this.netHandlers()); this.lobby(r.room); } catch (e) { err.textContent = e.message; }
+      };
+      app.querySelector('#join').onclick = async () => {
+        const c = app.querySelector('#code').value;
+        if (!c.trim()) { err.textContent = 'Bitte einen Raumcode eingeben.'; return; }
+        try { await HS.Net.join(c, getDeck(), this.netHandlers()); this.lobby(c.toUpperCase(), true); } catch (e) { err.textContent = e.message; }
+      };
+    },
+
+    lobby(code, joining) {
+      this.screen = 'lobby';
+      app.innerHTML = `<div class="menu"><h1>Online-Duell</h1><div class="box" style="text-align:center">
+        ${joining ? '<p>Verbinde …</p>' : `<p>Gib deinem Freund diesen Raumcode:</p><div class="code">${esc(code)}</div>
+        <p style="color:var(--muted)">Er öffnet dieselbe Adresse (${esc(location.host)}), wählt „Duell“ und tritt mit dem Code bei.</p><p>Warte auf Gegner …</p>`}
+        <button id="cancel">Abbrechen</button></div></div>`;
+      app.querySelector('#cancel').onclick = () => { HS.Net.forget(); this.menu(); };
+    },
+
+    netHandlers() {
+      return {
+        event: (ev) => this.onNet(ev),
+        error: () => { if (this.mode === 'online' && this.g && this.g.s.phase !== 'over') this.setHint('Verbindung unterbrochen – versuche erneut …'); },
+      };
+    },
+    onNet(ev) {
+      if (ev.type === 'hello') {
+        this.netSeat = ev.seat;
+        this.netApplied = 0;
+        if (ev.waiting && this.screen !== 'lobby') this.lobby(ev.room);
+        return;
+      }
+      if (ev.type === 'start') {
+        this.startGame('online', ev.decks.map((d) => ({ cls: d.cls, cards: d.cards, name: d.name })), { seed: ev.seed, first: ev.first, seat: this.netSeat });
+        return;
+      }
+      if (ev.type === 'action' && this.g && this.mode === 'online') {
+        this.busy = false;
+        this.snapshot();
+        HS.applyAction(this.g, ev.seat, ev.action);
+        this.after();
+      }
+    },
+
+    /* ================= Spiel ================= */
+    startGame(mode, decks, o) {
+      this.stopGame();
+      this.mode = mode;
+      this.g = HS.Game.create({ decks, seed: o.seed, first: o.first });
+      this.seat = mode === 'online' ? o.seat : 0;
+      this.sel = null;
+      this.mull = [];
+      this.busy = false;
+      this.shownSeat = null;
+      this.prev = null;
+      this.screen = 'game';
+      if (mode === 'ai') HS.applyAction(this.g, 1, { type: 'mulligan', ids: HS.AI.mulligan(this.g, 1) });
+      this.render();
+      this.checkOverlays();
+    },
+    stopGame() {
+      clearTimeout(this.aiTimer); this.aiTimer = null;
+      clearInterval(this.timer); this.timer = null;
+      hideModal();
+      tip.classList.add('hidden');
+      if (this.mode === 'online' && this.screen === 'game') HS.Net.forget();
+      this.g = null;
+    },
+    /* Wer sitzt unten? */
+    view() {
+      if (this.mode === 'hotseat') {
+        const g = this.g;
+        if (g.s.phase === 'mulligan') return g.P(g.s.first).mullDone ? 1 - g.s.first : g.s.first;
+        return g.s.pending ? g.s.pending.player : g.cur;
+      }
+      return this.seat;
+    },
+    actor() {
+      const g = this.g;
+      if (g.s.phase === 'mulligan') return this.view();
+      return g.s.pending ? g.s.pending.player : g.cur;
+    },
+    canAct() {
+      const g = this.g;
+      if (!g || g.s.phase !== 'play' || this.busy) return false;
+      if (this.mode === 'hotseat') return this.shownSeat === this.actor();
+      return this.actor() === this.seat;
+    },
+    act(a, seat) {
+      if (seat == null) seat = this.actor();
+      this.sel = null;
+      if (this.mode === 'online') {
+        this.busy = true;
+        HS.Net.send(a).catch((e) => { this.busy = false; toast(e.message); this.render(); });
+        this.render();
+        return;
+      }
+      this.snapshot();
+      if (!HS.applyAction(this.g, seat, a)) toast('Diese Aktion ist nicht möglich.');
+      this.after();
+    },
+    snapshot() {
+      const g = this.g;
+      const m = {};
+      for (const c of g.chars()) m[c.id] = g.hp(c) + (c.armor || 0);
+      this.prev = m;
+    },
+    after() {
+      this.render();
+      this.checkOverlays();
+      this.scheduleAI();
+    },
+    scheduleAI() {
+      const g = this.g;
+      if (this.mode !== 'ai' || !g || g.s.phase !== 'play' || this.aiTimer) return;
+      if (this.actor() !== 1) return;
+      this.aiTimer = setTimeout(() => {
+        this.aiTimer = null;
+        if (!this.g || this.g !== g) return;
+        const a = HS.AI.choose(g, 1);
+        this.flashIds = a.type === 'attack' ? [a.a, a.d] : a.type === 'play' && a.target ? [a.target] : a.type === 'power' && a.target ? [a.target] : [];
+        this.snapshot();
+        HS.applyAction(g, 1, a);
+        this.after();
+      }, 750);
+    },
+
+    checkOverlays() {
+      const g = this.g;
+      if (!g) return;
+      if (g.s.phase === 'over') return this.gameOver();
+      if (g.s.phase === 'mulligan') {
+        const v = this.view();
+        const mySeat = this.mode === 'hotseat' ? v : this.seat;
+        if (g.P(mySeat).mullDone) { if (this.mode === 'online') showModal('<h2>Warte auf den Gegner …</h2>'); return; }
+        if (this.mode === 'hotseat' && this.shownSeat !== mySeat) return this.passDevice(mySeat, () => this.mulliganDialog(mySeat));
+        return this.mulliganDialog(mySeat);
+      }
+      hideModal();
+      if (this.mode === 'hotseat' && this.shownSeat !== this.actor()) return this.passDevice(this.actor());
+      if (g.s.pending && g.s.pending.player === (this.mode === 'hotseat' ? this.shownSeat : this.seat)) this.pendingDialog();
+      this.startTimer();
+    },
+    passDevice(seat, then) {
+      const d = showModal(`<h2>Gerät an ${esc(this.g.P(seat).name)} übergeben</h2><p style="color:var(--muted)">Die Handkarten bleiben bis zur Bestätigung verdeckt.</p><button class="primary" id="ok">Ich bin ${esc(this.g.P(seat).name)}</button>`);
+      app.querySelector('.hand') && (app.querySelector('.hand').style.visibility = 'hidden');
+      d.querySelector('#ok').onclick = () => {
+        this.shownSeat = seat;
+        hideModal();
+        this.render();
+        if (then) then(); else this.checkOverlays();
+      };
+    },
+    mulliganDialog(seat) {
+      const g = this.g;
+      const p = g.P(seat);
+      const sel = new Set();
+      const draw = () => {
+        const d = showModal(`<h2>Starthand – ${esc(p.name)}</h2><p>${seat === g.s.first ? 'Du beginnst.' : 'Du bist Zweiter und erhältst „Die Münze“.'} Klicke Karten an, die du austauschen möchtest.</p>
+          <div class="cards">${p.mull.map((id) => cardHTML(g, g.ent(id), null, sel.has(id) ? 'replace' : '')).join('')}</div>
+          <button class="primary" id="ok">Bestätigen</button>`);
+        d.querySelectorAll('.card').forEach((c) => (c.onclick = () => { const id = +c.dataset.eid; sel.has(id) ? sel.delete(id) : sel.add(id); draw(); }));
+        d.querySelector('#ok').onclick = () => { hideModal(); this.act({ type: 'mulligan', ids: [...sel] }, seat); };
+      };
+      draw();
+    },
+    pendingDialog() {
+      const g = this.g;
+      const pd = g.s.pending;
+      const d = showModal(`<h2>Wähle eine Karte</h2><div class="cards">${pd.options.map((id, i) => `<div data-i="${i}">${cardHTML(g, g.ent(id))}</div>`).join('')}</div>`);
+      d.querySelectorAll('[data-i]').forEach((c) => (c.onclick = () => { hideModal(); this.act({ type: 'choose', idx: +c.dataset.i }); }));
+    },
+    gameOver() {
+      clearInterval(this.timer);
+      const g = this.g;
+      const w = g.s.winner;
+      let title;
+      if (w < 0) title = 'Unentschieden!';
+      else if (this.mode === 'hotseat') title = `${esc(g.P(w).name)} gewinnt!`;
+      else title = w === this.seat ? 'Sieg!' : 'Niederlage';
+      const d = showModal(`<h1>${title}</h1><div class="row" style="justify-content:center"><button id="look">Brett ansehen</button><button class="primary" id="menu">Hauptmenü</button></div>`);
+      d.querySelector('#menu').onclick = () => { if (this.mode === 'online') HS.Net.forget(); this.menu(); };
+      d.querySelector('#look').onclick = () => hideModal();
+    },
+    startTimer() {
+      clearInterval(this.timer);
+      this.timer = null;
+      const g = this.g;
+      if (!g || g.s.phase !== 'play' || !this.canAct()) return;
+      if (!g.board().some((m) => m.card === 'nozdormu' && !m.silenced)) return;
+      const key = g.s.turn;
+      if (this.timerTurn !== key) { this.timerTurn = key; this.timerEnd = Date.now() + 15000; }
+      this.timer = setInterval(() => {
+        const left = Math.ceil((this.timerEnd - Date.now()) / 1000);
+        const t = app.querySelector('.timer');
+        if (t) t.textContent = `Nozdormu: ${Math.max(0, left)} s`;
+        if (left <= 0) { clearInterval(this.timer); this.timer = null; if (this.g === g && g.s.turn === key && this.canAct()) this.act({ type: 'end' }); }
+      }, 250);
+    },
+    setHint(t) { const h = app.querySelector('.hint'); if (h) h.textContent = t; },
+
+    /* ---------- Rendern ---------- */
+    render() {
+      const g = this.g;
+      if (!g) return;
+      const me = this.view();
+      const op = 1 - me;
+      const act = this.canAct();
+      const hideOwn = this.mode === 'hotseat' && this.shownSeat !== me;
+      const sel = this.sel;
+      const tgt = new Set(sel && sel.targets ? sel.targets.map((t) => t.id) : []);
+      const selId = sel ? sel.id : null;
+      const cls = (e) => {
+        const c = [];
+        if (tgt.has(e.id)) c.push('targetable');
+        if (selId === e.id) c.push('selected');
+        if (this.flashIds && this.flashIds.includes(e.id)) c.push('flash');
+        return c.join(' ');
+      };
+      const floatFor = (e) => {
+        if (!this.prev || this.prev[e.id] == null) return '';
+        const d = g.hp(e) + (e.armor || 0) - this.prev[e.id];
+        if (!d) return '';
+        return `<span class="float ${d < 0 ? 'dmg' : 'heal'}">${d > 0 ? '+' : ''}${d}</span>`;
+      };
+      const minion = (m) => {
+        const d = g.def(m);
+        const ic = [];
+        if (!m.silenced && d.deathrattle || m.ench.some((x) => x.card && HS.CARDS[x.card] && HS.CARDS[x.card].deathrattle)) ic.push('☠');
+        if (!m.silenced && (d.triggers || d.aura || d.costAura || d.auraKw)) ic.push('ϟ');
+        if (g.has(m, 'windfury') || g.has(m, 'megaWindfury')) ic.push('≋');
+        if (g.has(m, 'poison')) ic.push('☣');
+        if (g.has(m, 'immune')) ic.push('✪');
+        if (g.spellPower(m.owner) && (d.spellDamage && !m.silenced || m.ench.some((x) => x.sd))) ic.push('✷');
+        if (g.has(m, 'elusive')) ic.push('◌');
+        if (m.ench.length) ic.push('•');
+        const a = g.atk(m), h = g.hp(m), mx = g.maxHp(m);
+        const ready = act && m.owner === g.cur && g.canAttack(m) && !sel;
+        const k = ['minion', 'cls-' + d.cls, cls(m)];
+        if (g.has(m, 'taunt')) k.push('taunt');
+        if (m.kw.divineShield) k.push('ds');
+        if (g.has(m, 'stealth')) k.push('stealth');
+        if (m.frozen) k.push('frozen');
+        if (m.silenced) k.push('silenced');
+        if (ready) k.push('ready');
+        if (m.owner === g.cur && m.exhausted && !g.has(m, 'charge')) k.push('sleep');
+        return `<div class="${k.join(' ')}" data-eid="${m.id}"><div class="micons">${ic.join(' ')}</div><div class="mname">${esc(d.name)}</div>
+          <div class="matk ${a > (d.atk || 0) ? 'hpbuff' : ''}">${a}</div><div class="mhp ${h < mx ? 'hpdmg' : mx > d.hp ? 'hpbuff' : ''}">${h}</div>${floatFor(m)}</div>`;
+      };
+      const boardHTML = (i) => {
+        const ms = g.board(i);
+        if (sel && sel.kind === 'pos' && i === me) {
+          let s = '<div class="slot" data-slot="0"></div>';
+          ms.forEach((m, k) => { s += minion(m) + `<div class="slot" data-slot="${k + 1}"></div>`; });
+          return s;
+        }
+        return ms.map(minion).join('');
+      };
+      const heroHTML = (i) => {
+        const h = g.hero(i);
+        const p = g.P(i);
+        const a = g.atk(h);
+        const k = ['hero', 'cls-' + p.cls, cls(h)];
+        if (h.frozen) k.push('frozen');
+        if (g.has(h, 'immune')) k.push('immune');
+        if (act && i === g.cur && g.canAttack(h) && !sel) k.push('ready');
+        const secrets = p.secrets.map((id) => {
+          const s = g.ent(id);
+          const show = i === me && !hideOwn;
+          return `<div class="secret" title="${show ? esc(g.def(s).name) : 'Geheimnis'}">?</div>`;
+        }).join('');
+        return `<div class="${k.join(' ')}" data-eid="${h.id}"><div class="secrets">${secrets}</div><div class="hname">${esc(p.name)}</div><span class="glyph">${GLYPH[p.cls]}</span>
+          ${a > 0 ? `<div class="hatk">${a}</div>` : ''}${h.armor ? `<div class="harm">${h.armor}</div>` : ''}<div class="hhp">${g.hp(h)}</div>${floatFor(h)}</div>`;
+      };
+      const powerHTML = (i) => {
+        const pw = g.power(i);
+        const d = g.def(pw);
+        const usable = act && i === g.cur && g.canPower(i) && !sel;
+        return `<div class="power ${g.P(i).powerUses ? 'used' : ''} ${usable ? 'playable' : ''} ${sel && sel.kind === 'power' && i === me ? 'selected' : ''}" data-power="${i}" data-eid="${pw.id}"><div class="pcost">${d.cost}</div>${esc(d.name)}</div>`;
+      };
+      const weaponHTML = (i) => {
+        const w = g.weapon(i);
+        if (!w) return '<div class="weapon empty"></div>';
+        return `<div class="weapon" data-eid="${w.id}">${esc(g.def(w).name)}<div class="watk">${g.atk(w)}</div><div class="wdur">${g.hp(w)}</div></div>`;
+      };
+      const manaHTML = (i) => {
+        const p = g.P(i);
+        let s = '';
+        for (let k = 0; k < Math.max(p.maxMana, p.mana); k++) s += `<i class="${k < p.mana ? '' : k < p.maxMana - p.locked || k >= p.maxMana ? 'spent' : 'locked'}"></i>`;
+        return `<div><b>${p.mana}/${p.maxMana}</b> Mana${p.locked ? ` · ${p.locked} gesperrt` : ''}${p.overload ? ` · Überladung ${p.overload}` : ''}</div><div class="mana">${s}</div>`;
+      };
+      const infoHTML = (i) => `<div class="info">${manaHTML(i)}<div>Deck: ${g.P(i).deck.length} · Hand: ${g.P(i).hand.length}</div>${g.P(i).fatigue ? `<div>Erschöpfung: ${g.P(i).fatigue}</div>` : ''}</div>`;
+      const myHand = g.hand(me).map((c) => {
+        if (hideOwn) return '<div class="card back"></div>';
+        const pl = act && g.cur === me && g.canPlay(me, c) && !sel;
+        return cardHTML(g, c, null, `${pl ? 'playable' : ''} ${selId === c.id ? 'selected' : ''}`);
+      }).join('');
+      const oppHand = g.hand(op).map(() => '<div class="card back"></div>').join('');
+      const myTurn = g.cur === me;
+      const anyMove = act && myTurn && HS.legalActions(g, me).length > 0;
+      const status = g.s.phase === 'over' ? 'Spiel beendet' : this.busy ? 'Sende …' : myTurn ? (this.mode === 'hotseat' ? `${esc(g.P(me).name)} ist am Zug` : 'Du bist am Zug') : `${esc(g.P(g.cur).name)} ist am Zug`;
+      const hint = sel ? (sel.kind === 'pos' ? 'Wähle einen Platz für den Diener.' : sel.kind === 'attack' ? 'Wähle ein Angriffsziel.' : 'Wähle ein Ziel.') + ' (Rechtsklick/Esc = Abbrechen)' : '';
+      app.innerHTML = `<div class="game">
+        <div class="table">
+          <div class="opp-hand">${oppHand}</div>
+          <div class="side opp">${infoHTML(op)}${weaponHTML(op)}${heroHTML(op)}${powerHTML(op)}</div>
+          <div class="board opp">${boardHTML(op)}</div>
+          <div class="board me">${boardHTML(me)}</div>
+          <div class="side me">${infoHTML(me)}${weaponHTML(me)}${heroHTML(me)}${powerHTML(me)}</div>
+          <div class="hand ${g.P(me).hand.length > 7 ? 'cramped' : ''}">${myHand}</div>
+        </div>
+        <div class="sidebar">
+          <div><b>${status}</b> · Runde ${Math.ceil(g.s.turn / 2)}</div>
+          <div class="timer"></div>
+          <button class="turnbtn ${act && myTurn && !anyMove ? 'ready' : ''}" id="endturn" ${act && myTurn ? '' : 'disabled'}>Zug beenden</button>
+          <div class="hint">${hint}</div>
+          <div class="log">${g.s.log.slice(-120).map((l) => `<div class="${l.startsWith('—') ? 'turn' : ''}">${esc(l)}</div>`).join('')}</div>
+          <div class="row"><button id="concede" class="danger">Aufgeben</button><button id="tomenu">Menü</button></div>
+        </div></div>`;
+      const log = app.querySelector('.log');
+      log.scrollTop = log.scrollHeight;
+      this.prev = null;
+      this.flashIds = null;
+      this.bind();
+    },
+    bind() {
+      const g = this.g;
+      app.querySelector('#endturn').onclick = () => { if (this.canAct() && g.cur === this.view()) this.act({ type: 'end' }); };
+      app.querySelector('#concede').onclick = () => {
+        if (g.s.phase === 'over') return;
+        if (!confirm('Wirklich aufgeben?')) return;
+        const seat = this.mode === 'hotseat' ? this.view() : this.seat;
+        if (this.mode === 'online') { HS.Net.send({ type: 'concede' }).catch((e) => toast(e.message)); return; }
+        this.act({ type: 'concede' }, seat);
+      };
+      app.querySelector('#tomenu').onclick = () => { if (g.s.phase === 'over' || confirm('Partie verlassen?')) this.menu(); };
+      app.querySelectorAll('.slot').forEach((s) => (s.onclick = (ev) => { ev.stopPropagation(); this.withPos(+s.dataset.slot); }));
+      app.querySelector('.table').onclick = (ev) => this.click(ev);
+      app.querySelector('.table').oncontextmenu = (ev) => { ev.preventDefault(); this.cancel(); };
+    },
+    cancel() { if (this.sel) { this.sel = null; this.render(); } },
+
+    click(ev) {
+      const g = this.g;
+      const t = ev.target.closest('[data-eid],[data-power]');
+      if (!this.canAct()) { if (t) this.inspect(t); return; }
+      const me = this.view();
+      const sel = this.sel;
+      if (sel && sel.targets) {
+        const id = t ? +t.dataset.eid : null;
+        const hit = sel.targets.find((x) => x.id === id);
+        if (hit) return sel.finish(hit);
+        return this.cancel();
+      }
+      if (sel && sel.kind === 'pos') return this.cancel();
+      if (!t) return;
+      if (t.dataset.power != null) {
+        if (+t.dataset.power !== me || !g.canPower(me)) return this.inspect(t);
+        const tl = g.powerTargets(me);
+        if (!tl) return this.act({ type: 'power' });
+        this.sel = { kind: 'power', targets: tl, finish: (x) => this.act({ type: 'power', target: x.id }) };
+        return this.render();
+      }
+      const e = g.ent(+t.dataset.eid);
+      if (!e) return;
+      if (e.zone === 'hand' && e.owner === me) {
+        if (!g.canPlay(me, e)) { toast(g.cost(e) > g.P(me).mana ? 'Nicht genug Mana.' : 'Diese Karte kann gerade nicht gespielt werden.'); return; }
+        return this.startPlay(e);
+      }
+      if (e.owner === me && g.inPlay(e) && g.canAttack(e)) {
+        this.sel = { kind: 'attack', id: e.id, targets: g.attackTargets(e), finish: (x) => this.act({ type: 'attack', a: e.id, d: x.id }) };
+        return this.render();
+      }
+      this.inspect(t);
+    },
+    startPlay(e) {
+      const g = this.g;
+      const d = g.def(e);
+      const me = this.view();
+      if (d.choose) {
+        const dlg = showModal(`<h2>${esc(d.name)} – Wählt aus:</h2><div class="cards">${d.choose.map((o, i) => {
+          const ok = g.canPlay(me, e, i);
+          return `<div class="card cls-${d.cls} type-spell" data-i="${i}" style="${ok ? '' : 'opacity:.35;pointer-events:none'}"><div class="art"><span class="glyph">${GLYPH[d.cls]}</span></div><div class="name">${esc(o.name)}</div><div class="ctext">${fmtText(o.text.replace(/\$(\d+)/g, (_, n) => { const v = g.spellDmg(e, +n); return v !== +n ? `*${v}*` : n; }))}</div></div>`;
+        }).join('')}</div><button id="x">Abbrechen</button>`);
+        dlg.querySelector('#x').onclick = () => hideModal();
+        dlg.querySelectorAll('[data-i]').forEach((c) => (c.onclick = () => { hideModal(); this.continuePlay(e, +c.dataset.i); }));
+        return;
+      }
+      this.continuePlay(e, undefined);
+    },
+    continuePlay(e, choice) {
+      const g = this.g;
+      const me = this.view();
+      if (g.def(e).type === 'minion' && g.P(me).board.length > 0) {
+        this.sel = { kind: 'pos', id: e.id, card: e, choice };
+        return this.render();
+      }
+      this.sel = { kind: 'pos', id: e.id, card: e, choice };
+      this.withPos(g.def(e).type === 'minion' ? 0 : undefined);
+    },
+    withPos(pos) {
+      const g = this.g;
+      const s = this.sel;
+      if (!s || !s.card) return;
+      const e = s.card;
+      const tl = g.targetsFor(e, s.choice);
+      const base = { type: 'play', id: e.id, choice: s.choice, pos };
+      if (tl && tl.length) {
+        this.sel = { kind: 'target', id: e.id, targets: tl, finish: (x) => this.act(Object.assign(base, { target: x.id })) };
+        return this.render();
+      }
+      this.act(base);
+    },
+    inspect(t) {
+      const e = this.g.ent(+t.dataset.eid);
+      if (!e) return;
+      this.showTip(e, t.getBoundingClientRect());
+      clearTimeout(this._tipT);
+      this._tipT = setTimeout(() => tip.classList.add('hidden'), 2500);
+    },
+    showTip(e, rect) {
+      const g = this.g;
+      if (!g || (e.zone === 'hand' && e.owner !== this.view()) || (e.zone === 'hand' && this.mode === 'hotseat' && this.shownSeat !== e.owner)) return;
+      if (e.zone === 'secret' || e.zone === 'deck') return;
+      const extra = [];
+      if (g.isMinion(e)) {
+        if (e.frozen) extra.push('Eingefroren');
+        if (e.silenced) extra.push('Zum Schweigen gebracht');
+        if (g.has(e, 'immune')) extra.push('Immun');
+        for (const x of e.ench) {
+          const bits = [];
+          if (x.atk) bits.push((x.atk > 0 ? '+' : '') + x.atk + ' Angriff');
+          if (x.hp) bits.push('+' + x.hp + ' Leben');
+          if (x.setAtk != null) bits.push('Angriff = ' + x.setAtk);
+          if (x.setHp != null) bits.push('Leben = ' + x.setHp);
+          if (x.kw) bits.push(x.kw.join(', '));
+          if (x.sd) bits.push('Zauberschaden +' + x.sd);
+          if (x.card && HS.CARDS[x.card] && HS.CARDS[x.card].text) bits.push(HS.CARDS[x.card].text);
+          else if (x.card) bits.push('Verzauberung');
+          if (x.expire) bits.push('(vorübergehend)');
+          if (bits.length) extra.push(bits.join(' '));
+        }
+      }
+      let html;
+      if (g.isHero(e)) html = `<div class="tipx"><b>${esc(g.P(e.owner).name)}</b><br>Leben ${g.hp(e)}/${g.maxHp(e)}${e.armor ? ` · Rüstung ${e.armor}` : ''}</div>`;
+      else if (g.def(e).type === 'power') html = `<div class="tipx"><b>${esc(g.def(e).name)}</b> (${g.def(e).cost})<br>${fmtText(g.text(e))}</div>`;
+      else html = cardHTML(g, e) + (extra.length ? `<div class="tipx">${extra.map(esc).join('<br>').replace(/&lt;(\/?)b&gt;/g, '<$1b>')}</div>` : '');
+      tip.innerHTML = html;
+      tip.classList.remove('hidden');
+      const w = 190, hgt = 280;
+      let x = rect.right + 10, y = rect.top - 40;
+      if (x + w > innerWidth) x = rect.left - w - 10;
+      if (x < 4) x = 4;
+      if (y + hgt > innerHeight) y = innerHeight - hgt - 4;
+      if (y < 4) y = 4;
+      tip.style.left = x + 'px';
+      tip.style.top = y + 'px';
+    },
+
+    /* ================= Deck-Editor ================= */
+    editorSetup() {
+      this.screen = 'editor';
+      const decks = Store.decks();
+      app.innerHTML = `<div class="menu" style="max-width:1000px"><h1>Deck-Editor</h1>
+        <div class="box" style="max-width:none"><h2>Neues Deck</h2><div class="row">${CLASS_KEYS.map((k) => `<button class="cls-${k}" data-new="${k}" style="border-left:6px solid var(--cc)">${HS.CLASSES[k].name}</button>`).join('')}</div>
+          <div class="row" style="margin-top:10px"><input type="text" id="imp" placeholder="Deckcode einfügen" style="flex:1"><button id="doimp">Importieren</button></div></div>
+        <div class="box" style="max-width:none"><h2>Meine Decks</h2><div class="mydecks">${decks.length ? decks.map((d) => {
+          const errs = HS.validateDeck(d.cls, d.cards);
+          return `<div class="deckcard cls-${d.cls}" data-edit="${d.id}"><b>${esc(d.name)}</b><small>${HS.CLASSES[d.cls].name} · ${d.cards.length}/30 ${errs.length ? '· unvollständig' : '✓'}</small></div>`;
+        }).join('') : '<p style="color:var(--muted)">Noch keine eigenen Decks.</p>'}</div></div>
+        <div class="box" style="max-width:none"><h2>Startdecks als Vorlage</h2><div class="mydecks">${HS.PRESETS.map((p, i) => `<div class="deckcard cls-${p.cls}" data-preset="${i}"><b>${esc(p.name)}</b><small>${HS.CLASSES[p.cls].name} · Kopie bearbeiten</small></div>`).join('')}</div></div>
+        <div class="row end"><button id="back">Zurück</button></div></div>`;
+      app.querySelector('#back').onclick = () => this.menu();
+      app.querySelectorAll('[data-new]').forEach((b) => (b.onclick = () => this.editDeck({ id: 'd' + Date.now(), name: 'Neues ' + HS.CLASSES[b.dataset.new].name + '-Deck', cls: b.dataset.new, cards: [] })));
+      app.querySelectorAll('[data-edit]').forEach((b) => (b.onclick = () => this.editDeck(structuredClone(Store.decks().find((d) => d.id === b.dataset.edit)))));
+      app.querySelectorAll('[data-preset]').forEach((b) => (b.onclick = () => { const p = HS.PRESETS[+b.dataset.preset]; this.editDeck({ id: 'd' + Date.now(), name: p.name + ' (Kopie)', cls: p.cls, cards: HS.fixDeck(p.cls, p.cards) }); }));
+      app.querySelector('#doimp').onclick = () => {
+        try {
+          const d = decodeDeck(app.querySelector('#imp').value);
+          this.editDeck({ id: 'd' + Date.now(), name: d.name, cls: d.cls, cards: d.cards });
+        } catch (e) { toast('Ungültiger Deckcode.'); }
+      };
+    },
+    editDeck(deck) {
+      this.screen = 'deck';
+      const f = { cls: true, cost: null, set: '', q: '', type: '' };
+      const pool = HS.cardsForClass(deck.cls).sort((a, b) => (a.cls === 'neutral') - (b.cls === 'neutral') || a.cost - b.cost || a.name.localeCompare(b.name));
+      const count = (id) => deck.cards.filter((c) => c === id).length;
+      const render = () => {
+        const list = pool.filter((c) => (f.cls ? c.cls === deck.cls : c.cls === 'neutral')
+          && (f.cost == null || (f.cost === 7 ? c.cost >= 7 : c.cost === f.cost))
+          && (!f.set || c.set === f.set) && (!f.type || c.type === f.type)
+          && (!f.q || (c.name + ' ' + HS.textOf(c).replace(/<[^>]+>/g, '') + ' ' + (c.race ? HS.RACES[c.race] : '')).toLowerCase().includes(f.q.toLowerCase())));
+        const grid = list.map((c) => {
+          const n = count(c.id);
+          return `<div style="position:relative">${cardHTML(null, null, c.id, n >= HS.maxCopies(c) ? 'maxed' : '').replace('</div>', `</div>${n ? `<div class="count">${n}×</div>` : ''}`)}</div>`;
+        }).join('');
+        const grouped = {};
+        for (const id of deck.cards) grouped[id] = (grouped[id] || 0) + 1;
+        const entries = Object.keys(grouped).map((id) => HS.CARDS[id]).sort((a, b) => a.cost - b.cost || a.name.localeCompare(b.name));
+        const curve = Array(8).fill(0);
+        for (const id of deck.cards) curve[Math.min(7, HS.CARDS[id].cost)]++;
+        const mx = Math.max(1, ...curve);
+        const errs = HS.validateDeck(deck.cls, deck.cards);
+        app.innerHTML = `<div class="editor"><div class="collection">
+          <div class="filters">
+            <button data-f="cls" class="${f.cls ? 'on' : ''}">${HS.CLASSES[deck.cls].name}</button><button data-f="neu" class="${!f.cls ? 'on' : ''}">Neutral</button>
+            <span style="width:8px"></span>${[0, 1, 2, 3, 4, 5, 6, 7].map((c) => `<button data-cost="${c}" class="${f.cost === c ? 'on' : ''}">${c === 7 ? '7+' : c}</button>`).join('')}
+            <select id="fset"><option value="">Alle Sets</option>${['basic', 'classic', 'naxx', 'gvg', 'brm'].map((s) => `<option value="${s}" ${f.set === s ? 'selected' : ''}>${HS.SETS[s]}</option>`).join('')}</select>
+            <select id="ftype"><option value="">Alle Typen</option><option value="minion" ${f.type === 'minion' ? 'selected' : ''}>Diener</option><option value="spell" ${f.type === 'spell' ? 'selected' : ''}>Zauber</option><option value="weapon" ${f.type === 'weapon' ? 'selected' : ''}>Waffen</option></select>
+            <input type="text" id="fq" placeholder="Suche…" value="${esc(f.q)}" style="flex:1;min-width:120px">
+          </div>
+          <div class="grid">${grid || '<p style="color:var(--muted)">Keine Karten gefunden.</p>'}</div></div>
+          <div class="decklist cls-${deck.cls}">
+            <input type="text" id="dname" value="${esc(deck.name)}" maxlength="40">
+            <div><b style="color:${deck.cards.length === 30 ? 'var(--green)' : 'var(--gold)'}">${deck.cards.length}/30</b> Karten · ${HS.CLASSES[deck.cls].name}</div>
+            <div class="curve">${curve.map((n, i) => `<div style="height:${(n / mx) * 100}%" title="${n}"><span>${i === 7 ? '7+' : i}</span></div>`).join('')}</div>
+            <div style="height:12px"></div>
+            <div class="entries">${entries.map((c) => `<div class="entry cls-${c.cls} rar-${c.rarity}" data-rm="${c.id}"><div class="ec">${c.cost}</div><div class="en">${esc(c.name)}</div><div class="ex">${grouped[c.id] > 1 ? '×' + grouped[c.id] : c.rarity === 'legendary' ? '★' : ''}</div></div>`).join('')}</div>
+            ${errs.length && deck.cards.length === 30 ? `<div class="err">${errs.map(esc).join('<br>')}</div>` : ''}
+            <div class="row"><button id="fill">Auffüllen</button><button id="clear">Leeren</button><button id="code">Deckcode</button></div>
+            <div class="row"><button class="danger" id="del">Löschen</button><button id="back">Zurück</button><button class="primary" id="save">Speichern</button></div>
+          </div></div>`;
+        app.querySelector('[data-f=cls]').onclick = () => { f.cls = true; render(); };
+        app.querySelector('[data-f=neu]').onclick = () => { f.cls = false; render(); };
+        app.querySelectorAll('[data-cost]').forEach((b) => (b.onclick = () => { const c = +b.dataset.cost; f.cost = f.cost === c ? null : c; render(); }));
+        app.querySelector('#fset').onchange = (e) => { f.set = e.target.value; render(); };
+        app.querySelector('#ftype').onchange = (e) => { f.type = e.target.value; render(); };
+        const q = app.querySelector('#fq');
+        q.oninput = () => { f.q = q.value; clearTimeout(this._qt); this._qt = setTimeout(() => { render(); const n = app.querySelector('#fq'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }, 200); };
+        app.querySelector('#dname').oninput = (e) => { deck.name = e.target.value; };
+        app.querySelectorAll('.grid [data-cid]').forEach((c) => {
+          c.onclick = () => {
+            const card = HS.CARDS[c.dataset.cid];
+            if (deck.cards.length >= 30) return toast('Das Deck ist voll (30 Karten).');
+            if (count(card.id) >= HS.maxCopies(card)) return toast(card.rarity === 'legendary' ? 'Legendäre Karten nur einmal pro Deck.' : 'Höchstens 2 Kopien pro Karte.');
+            deck.cards.push(card.id);
+            render();
+          };
+          c.onmouseenter = () => { };
+        });
+        app.querySelectorAll('[data-rm]').forEach((r) => (r.onclick = () => { const i = deck.cards.indexOf(r.dataset.rm); if (i >= 0) deck.cards.splice(i, 1); render(); }));
+        app.querySelector('#fill').onclick = () => { deck.cards = HS.fixDeck(deck.cls, deck.cards); render(); };
+        app.querySelector('#clear').onclick = () => { if (confirm('Alle Karten entfernen?')) { deck.cards = []; render(); } };
+        app.querySelector('#code').onclick = () => {
+          const code = encodeDeck(deck);
+          const d = showModal(`<h2>Deckcode</h2><p>Kopieren und an Freunde schicken – im Deck-Editor über „Importieren“ einfügen.</p><textarea style="width:100%;height:90px;background:#241a12;color:var(--text)" readonly>${esc(code)}</textarea><button id="ok">Schließen</button>`);
+          const ta = d.querySelector('textarea'); ta.select();
+          d.querySelector('#ok').onclick = () => hideModal();
+        };
+        app.querySelector('#save').onclick = () => {
+          const all = Store.decks().filter((d) => d.id !== deck.id);
+          all.push({ id: deck.id, name: deck.name.trim() || 'Deck', cls: deck.cls, cards: deck.cards.slice() });
+          Store.saveDecks(all);
+          toast(errs.length ? 'Gespeichert (noch nicht spielbereit: 30 Karten nötig).' : 'Deck gespeichert.');
+        };
+        app.querySelector('#del').onclick = () => { if (confirm('Deck löschen?')) { Store.saveDecks(Store.decks().filter((d) => d.id !== deck.id)); this.editorSetup(); } };
+        app.querySelector('#back').onclick = () => this.editorSetup();
+      };
+      render();
+    },
+  };
+
+  function encodeDeck(d) {
+    const json = JSON.stringify({ n: d.name, c: d.cls, k: d.cards });
+    return 'TD1:' + btoa(unescape(encodeURIComponent(json)));
+  }
+  function decodeDeck(code) {
+    const s = code.trim().replace(/^TD1:/, '');
+    const o = JSON.parse(decodeURIComponent(escape(atob(s))));
+    if (!HS.CLASSES[o.c] || !Array.isArray(o.k)) throw new Error('bad');
+    return { name: String(o.n || 'Importiertes Deck').slice(0, 40), cls: o.c, cards: HS.fixDeck(o.c, o.k.map(String)).slice(0, 30) };
+  }
+
+  /* Tooltip beim Überfahren */
+  document.addEventListener('mouseover', (ev) => {
+    if (UI.screen !== 'game' || !UI.g) {
+      const c = ev.target.closest('.grid [data-cid]');
+      if (c && UI.screen === 'deck') {
+        const d = HS.CARDS[c.dataset.cid];
+        tip.innerHTML = `<div class="tipx"><b>${esc(d.name)}</b> · ${HS.SETS[d.set]} · ${{ free: 'Basis', common: 'Gewöhnlich', rare: 'Selten', epic: 'Episch', legendary: 'Legendär' }[d.rarity]}</div>`;
+        const r = c.getBoundingClientRect();
+        tip.style.left = Math.min(innerWidth - 210, r.left) + 'px';
+        tip.style.top = Math.max(4, r.top - 40) + 'px';
+        tip.classList.remove('hidden');
+      } else tip.classList.add('hidden');
+      return;
+    }
+    const t = ev.target.closest('[data-eid]');
+    if (!t || t.closest('#modal')) { tip.classList.add('hidden'); return; }
+    if (t.closest('.hand') && !t.closest('.minion')) { tip.classList.add('hidden'); return; }
+    const e = UI.g.ent(+t.dataset.eid);
+    if (e) UI.showTip(e, t.getBoundingClientRect());
+  });
+  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && UI.screen === 'game') UI.cancel(); });
+
+  window.UI = UI;
+  if (HS.Net.available() && HS.Net.resume(UI.netHandlers())) UI.lobby('…', true);
+  else UI.menu();
+})();
