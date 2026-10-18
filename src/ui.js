@@ -25,6 +25,12 @@
   }
   function showModal(html) { modal.innerHTML = `<div class="dialog">${html}</div>`; modal.classList.remove('hidden'); return modal.firstChild; }
   function hideModal() { modal.classList.add('hidden'); modal.innerHTML = ''; }
+  /* eigener Bestätigungsdialog (window.confirm ist nicht überall verfügbar) */
+  function ask(msg, yes) {
+    const d = showModal(`<h2>${esc(msg)}</h2><div class="row" style="justify-content:center"><button id="no">Abbrechen</button><button class="primary" id="yes">Ja</button></div>`);
+    d.querySelector('#no').onclick = () => hideModal();
+    d.querySelector('#yes').onclick = () => { hideModal(); yes(); };
+  }
 
   /* ---------------- Kartendarstellung ---------------- */
   function fmtText(t) { return t.replace(/\*(\d+)\*/g, '<b class="sd">$1</b>'); }
@@ -86,7 +92,7 @@
           <div class="menu-tile" data-go="duel"><b>Duell</b><span>Gegen Freunde – online per Raumcode oder lokal an einem Gerät.</span></div>
           <div class="menu-tile" data-go="editor"><b>Deck-Editor</b><span>Eigene Decks bauen, alle Karten verfügbar.</span></div>
         </div>
-        ${online ? '' : '<p class="err" style="margin-top:20px">Online-Duelle brauchen den Server: <code>node server.js</code> starten und <code>http://localhost:8080</code> öffnen.</p>'}
+        ${online ? '' : '<p class="err" style="margin-top:20px">Online-Duelle gegen Freunde brauchen den mitgelieferten Server (<code>node server.js</code>). Hier gehen KI-Partie, lokales Duell und Deck-Editor.</p>'}
       </div>`;
       app.querySelectorAll('[data-go]').forEach((t) => (t.onclick = () => this[t.dataset.go + 'Setup']()));
     },
@@ -474,15 +480,19 @@
       app.querySelector('#endturn').onclick = () => { if (this.canAct() && g.cur === this.view()) this.act({ type: 'end' }); };
       app.querySelector('#concede').onclick = () => {
         if (g.s.phase === 'over') return;
-        if (!confirm('Wirklich aufgeben?')) return;
-        const seat = this.mode === 'hotseat' ? this.view() : this.seat;
-        if (this.mode === 'online') { HS.Net.send({ type: 'concede' }).catch((e) => toast(e.message)); return; }
-        this.act({ type: 'concede' }, seat);
+        ask('Wirklich aufgeben?', () => this.concede());
       };
-      app.querySelector('#tomenu').onclick = () => { if (g.s.phase === 'over' || confirm('Partie verlassen?')) this.menu(); };
+      app.querySelector('#tomenu').onclick = () => { if (g.s.phase === 'over') this.menu(); else ask('Partie verlassen?', () => this.menu()); };
       app.querySelectorAll('.slot').forEach((s) => (s.onclick = (ev) => { ev.stopPropagation(); this.withPos(+s.dataset.slot); }));
       app.querySelector('.table').onclick = (ev) => this.click(ev);
       app.querySelector('.table').oncontextmenu = (ev) => { ev.preventDefault(); this.cancel(); };
+    },
+    concede() {
+        const g = this.g;
+        if (!g || g.s.phase === 'over') return;
+        const seat = this.mode === 'hotseat' ? this.view() : this.seat;
+        if (this.mode === 'online') { HS.Net.send({ type: 'concede' }).catch((e) => toast(e.message)); return; }
+        this.act({ type: 'concede' }, seat);
     },
     cancel() { if (this.sel) { this.sel = null; this.render(); } },
 
@@ -687,7 +697,7 @@
         });
         app.querySelectorAll('[data-rm]').forEach((r) => (r.onclick = () => { const i = deck.cards.indexOf(r.dataset.rm); if (i >= 0) deck.cards.splice(i, 1); render(); }));
         app.querySelector('#fill').onclick = () => { deck.cards = HS.fixDeck(deck.cls, deck.cards); render(); };
-        app.querySelector('#clear').onclick = () => { if (confirm('Alle Karten entfernen?')) { deck.cards = []; render(); } };
+        app.querySelector('#clear').onclick = () => { ask('Alle Karten entfernen?', () => { deck.cards = []; render(); }); };
         app.querySelector('#code').onclick = () => {
           const code = encodeDeck(deck);
           const d = showModal(`<h2>Deckcode</h2><p>Kopieren und an Freunde schicken – im Deck-Editor über „Importieren“ einfügen.</p><textarea style="width:100%;height:90px;background:#241a12;color:var(--text)" readonly>${esc(code)}</textarea><button id="ok">Schließen</button>`);
@@ -700,7 +710,7 @@
           Store.saveDecks(all);
           toast(errs.length ? 'Gespeichert (noch nicht spielbereit: 30 Karten nötig).' : 'Deck gespeichert.');
         };
-        app.querySelector('#del').onclick = () => { if (confirm('Deck löschen?')) { Store.saveDecks(Store.decks().filter((d) => d.id !== deck.id)); this.editorSetup(); } };
+        app.querySelector('#del').onclick = () => { ask('Deck löschen?', () => { Store.saveDecks(Store.decks().filter((d) => d.id !== deck.id)); this.editorSetup(); }); };
         app.querySelector('#back').onclick = () => this.editorSetup();
       };
       render();
@@ -741,6 +751,10 @@
   document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && UI.screen === 'game') UI.cancel(); });
 
   window.UI = UI;
-  if (HS.Net.available() && HS.Net.resume(UI.netHandlers())) UI.lobby('…', true);
-  else UI.menu();
+  UI.menu();
+  HS.Net.probe().then((ok) => {
+    if (!ok) return;
+    if (HS.Net.resume(UI.netHandlers())) UI.lobby('…', true);
+    else if (UI.screen === 'menu') UI.menu();
+  });
 })();

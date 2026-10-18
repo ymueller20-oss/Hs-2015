@@ -110,6 +110,7 @@ async function api(req, res, url) {
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
+  if (url.pathname === '/api/ping') return send(res, 200, { duel: true });
   if (url.pathname.startsWith('/api/')) {
     api(req, res, url).catch((e) => { console.error(e); send(res, 500, { error: 'Serverfehler.' }); });
     return;

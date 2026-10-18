@@ -14,7 +14,13 @@
     session: null,
     es: null,
     handlers: null,
-    available() { return location.protocol.startsWith('http'); },
+    ok: false,
+    available() { return this.ok; },
+    async probe() {
+      if (!location.protocol.startsWith('http')) return false;
+      try { const r = await fetch('/api/ping', { cache: 'no-store' }); const j = await r.json(); this.ok = !!(j && j.duel); } catch (e) { this.ok = false; }
+      return this.ok;
+    },
     async create(deck, handlers) {
       const r = await post('/api/room', { deck });
       this.connect(r, handlers);
