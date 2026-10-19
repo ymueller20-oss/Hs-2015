@@ -256,6 +256,9 @@
     act(a, seat) {
       if (seat == null) seat = this.actor();
       this.sel = null;
+      this.pending = null;
+      this.arrow(null);
+      app.querySelectorAll('.ghost').forEach((x) => x.remove());
       if (this.mode === 'online') {
         this.busy = true;
         HS.Net.send(a).catch((e) => { this.busy = false; toast(e.message); this.render(); });
@@ -509,11 +512,12 @@
     fit() {
       const st = document.getElementById('stage');
       if (!st) return;
-      const W = 1280, H = 720;
+      const portrait = innerHeight > innerWidth;
+      const W = portrait ? 720 : 1280, H = portrait ? 1280 : 720;
       const sc = Math.min(innerWidth / W, innerHeight / H);
       this.scale = sc;
+      st.classList.toggle('portrait', portrait);
       st.style.transform = `translate(${(innerWidth - W * sc) / 2}px, ${(innerHeight - H * sc) / 2}px) scale(${sc})`;
-      document.body.classList.toggle('portrait', innerHeight > innerWidth * 1.1 && innerWidth < 900);
     },
     banner(text) {
       const b = app.querySelector('#banner');
@@ -548,7 +552,7 @@
       if (this.mode === 'online') { HS.Net.send({ type: 'concede' }).catch((e) => toast(e.message)); return; }
       this.act({ type: 'concede' }, seat);
     },
-    cancel() { this.sel = null; this.dropPos = null; this.arrow(null); if (this.g) this.render(); },
+    cancel() { if (this.pending) return this.cancelPending(); this.sel = null; this.dropPos = null; this.arrow(null); if (this.g) this.render(); },
 
     /* ---------- Zeigen, Ziehen, Zielen ---------- */
     center(el) { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; },
@@ -575,18 +579,54 @@
       if (!t || !this.sel || !this.sel.targets) return null;
       return this.sel.targets.find((e) => e.id === +t.dataset.eid) || null;
     },
-    boardPosAt(x) {
-      const els = [...app.querySelectorAll('#myboard .minion')];
-      let pos = 0;
-      for (const el of els) { const [cx] = this.center(el); if (x > cx) pos++; }
-      return pos;
+    /* Ziele direkt im DOM markieren (kein Neuaufbau während des Ziehens) */
+    markTargets(list) {
+      app.querySelectorAll('.targetable').forEach((el) => el.classList.remove('targetable'));
+      if (list) for (const t of list) app.querySelectorAll(`.table [data-eid="${t.id}"]`).forEach((el) => el.classList.add('targetable'));
+    },
+    /* Bildschirm- in Bühnenkoordinaten */
+    toStage(x, y) {
+      const r = document.getElementById('stage').getBoundingClientRect();
+      return [(x - r.left) / this.scale, (y - r.top) / this.scale];
+    },
+    /* Lücke im eigenen Brett öffnen: Diener links/rechts der Einfügestelle rücken auseinander */
+    openGap(idx) {
+      const d = this.drag || this.pending;
+      const els = d && d.boardEls ? d.boardEls : [];
+      const half = (els.length ? els[0].offsetWidth + 12 : 104) / 2;
+      els.forEach((el, i) => { el.style.transform = idx == null ? '' : `translateX(${i < idx ? -half : half}px)`; });
+    },
+    insertIndex(x) {
+      const d = this.drag;
+      let i = 0;
+      for (const cx of d.centers) if (x > cx) i++;
+      return i;
+    },
+    inBoardZone(x, y) {
+      const r = this.drag.boardRect;
+      return x > r.left - 40 && x < r.right + 40 && y > r.top - 70 && y < r.bottom + 50;
+    },
+    moveGhost(x, y) {
+      const d = this.drag;
+      const [sx, sy] = this.toStage(x, y);
+      d.gx = sx; d.gy = sy;
+      d.ghost.style.transform = `translate3d(${sx}px, ${sy}px, 0) translate(-50%, -62%) scale(${d.small ? 0.72 : 1})`;
+    },
+    returnGhost(d) {
+      if (!d.ghost) return;
+      const home = d.el.getBoundingClientRect();
+      const [hx, hy] = this.toStage(home.left + home.width / 2, home.top + home.height / 2);
+      d.ghost.classList.add('back');
+      d.ghost.style.transform = `translate3d(${hx}px, ${hy}px, 0) translate(-50%, -50%) scale(.85)`;
+      setTimeout(() => { d.ghost.remove(); d.el.classList.remove('lifted'); }, 220);
     },
     down(ev) {
       if (ev.button === 2) return;
       const g = this.g;
       const t = ev.target.closest('[data-eid],[data-power],.slot');
+      if (this.pending) { this.cancelPending(); return; }
       if (!t || t.classList.contains('slot')) { if (this.sel && this.sel.kind !== 'pos') this.cancel(); return; }
-      const touchPv = () => { if (ev.pointerType !== 'mouse') { const pe = t.dataset.power != null ? this.g.power(+t.dataset.power) : this.g.ent(+t.dataset.eid); if (pe) this.preview(pe, true); } };
+      const touchPv = () => { if (ev.pointerType !== 'mouse') { const pe = t.dataset.power != null ? g.power(+t.dataset.power) : g.ent(+t.dataset.eid); if (pe) this.preview(pe, true); } };
       if (!this.canAct()) return touchPv();
       const me = this.view();
       if (this.sel && this.sel.targets) {
@@ -600,74 +640,85 @@
       if (!e) return;
       if (t.dataset.power != null) { if (+t.dataset.power === me && g.canPower(me)) kind = 'power'; }
       else if (e.zone === 'hand' && e.owner === me) {
-        if (!g.canPlay(me, e)) { toast(g.cost(e) > g.P(me).mana ? 'Nicht genug Mana.' : 'Diese Karte kann gerade nicht gespielt werden.'); return; }
+        if (!g.canPlay(me, e)) { if (ev.pointerType !== 'mouse') return touchPv(); toast(g.cost(e) > g.P(me).mana ? 'Nicht genug Mana.' : 'Diese Karte kann gerade nicht gespielt werden.'); return; }
         kind = 'card';
       } else if (e.owner === me && g.inPlay(e) && g.canAttack(e)) kind = 'attack';
       if (!kind) return touchPv();
       ev.preventDefault();
+      try { t.setPointerCapture && t.releasePointerCapture(ev.pointerId); } catch (x) { /* egal */ }
       this.hidePreview();
-      this.drag = { kind, e, el: t, x0: ev.clientX, y0: ev.clientY, moved: false, from: this.center(t), touch: ev.pointerType !== 'mouse' };
-      const move = (m) => this.dmove(m);
-      const up = (u) => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); this.dup(u); };
-      addEventListener('pointermove', move);
+      const d = { kind, e, el: t, x0: ev.clientX, y0: ev.clientY, moved: false, from: this.center(t), touch: ev.pointerType !== 'mouse' };
+      this.drag = d;
+      let raf = 0, last = null;
+      const move = (m) => { last = m; if (!raf) raf = requestAnimationFrame(() => { raf = 0; if (last) this.dmove(last); }); };
+      const up = (u) => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); if (raf) cancelAnimationFrame(raf); this.dmove(u); this.dup(u); };
+      addEventListener('pointermove', move, { passive: true });
       addEventListener('pointerup', up);
+      addEventListener('pointercancel', up);
       if (kind === 'attack') {
         this.sel = { kind: 'attack', id: e.id, targets: g.attackTargets(e), finish: (x) => this.doAttack(e.id, x.id) };
-        this.render();
+        t.classList.add('selected');
+        this.markTargets(this.sel.targets);
       } else if (kind === 'power') {
         const tl = g.powerTargets(me);
-        if (tl) { this.sel = { kind: 'power', targets: tl, finish: (x) => this.act({ type: 'power', target: x.id }) }; this.render(); }
+        if (tl) { this.sel = { kind: 'power', targets: tl, finish: (x) => this.act({ type: 'power', target: x.id }) }; t.classList.add('selected'); this.markTargets(tl); }
       }
     },
     dmove(ev) {
       const d = this.drag;
       if (!d) return;
-      if (!d.moved && Math.hypot(ev.clientX - d.x0, ev.clientY - d.y0) < 8) return;
+      if (!d.moved && Math.hypot(ev.clientX - d.x0, ev.clientY - d.y0) < 6) return;
+      const g = this.g;
       if (!d.moved) {
         d.moved = true;
         if (d.kind === 'card') {
           d.ghost = document.createElement('div');
           d.ghost.className = 'ghost';
-          d.ghost.style.setProperty('--cw', Math.round(118 * (this.scale || 1) * 1.1) + 'px');
-          d.ghost.innerHTML = cardHTML(this.g, d.e);
-          document.body.append(d.ghost);
-          this.render();
+          d.ghost.innerHTML = cardHTML(g, d.e);
+          document.getElementById('stage').append(d.ghost);
+          d.el.classList.add('lifted');
+          d.boardEls = [...app.querySelectorAll('#myboard .minion')];
+          d.centers = d.boardEls.map((el) => this.center(el)[0]);
+          d.boardRect = app.querySelector('#myboard').getBoundingClientRect();
+          d.handTop = app.querySelector('#myhand').getBoundingClientRect().top;
+          const c = g.def(d.e);
+          d.isMinion = c.type === 'minion';
+          d.tl = !c.choose ? g.targetsFor(d.e) : null;
         }
       }
-      if (d.kind === 'card') {
-        const g = this.g, c = g.def(d.e);
-        const handTop = app.querySelector('#myhand').getBoundingClientRect().top;
-        const above = ev.clientY < handTop - 10;
-        const tl = !c.choose ? g.targetsFor(d.e) : null;
-        if (c.type !== 'minion' && tl && tl.length && above) {
-          d.ghost.style.display = 'none';
-          if (!this.sel) { this.sel = { kind: 'target', id: d.e.id, targets: tl, finish: (x) => this.act({ type: 'play', id: d.e.id, target: x.id }) }; this.render(); }
-          this.arrow([d.x0, handTop], [ev.clientX, ev.clientY], !!this.targetAt(ev.clientX, ev.clientY));
-          return;
-        }
-        if (this.sel && this.sel.kind === 'target') { this.sel = null; this.arrow(null); this.render(); }
-        d.ghost.style.display = '';
-        d.ghost.style.left = ev.clientX + 'px';
-        d.ghost.style.top = ev.clientY + 'px';
-        d.ghost.classList.toggle('armed', above);
-        if (c.type === 'minion') {
-          const bd = app.querySelector('#myboard').getBoundingClientRect();
-          const pos = above && ev.clientY > bd.top - 60 ? this.boardPosAt(ev.clientX) : null;
-          if (pos !== this.dropPos) { this.dropPos = pos; this.render(); }
-        }
+      if (d.kind !== 'card') {
+        if (this.sel && this.sel.targets) this.arrow(d.from, [ev.clientX, ev.clientY], !!this.targetAt(ev.clientX, ev.clientY));
         return;
       }
-      if (this.sel && this.sel.targets) this.arrow(d.from, [ev.clientX, ev.clientY], !!this.targetAt(ev.clientX, ev.clientY));
+      const above = ev.clientY < d.handTop - 8;
+      if (!d.isMinion && d.tl && d.tl.length && above) {
+        /* Zielzauber: Karte verschwindet, Pfeil zeigt aufs Ziel */
+        d.ghost.style.opacity = '0';
+        if (!this.sel) { this.sel = { kind: 'target', id: d.e.id, targets: d.tl, finish: (x) => this.act({ type: 'play', id: d.e.id, target: x.id }) }; this.markTargets(d.tl); }
+        this.arrow([d.x0, d.handTop], [ev.clientX, ev.clientY], !!this.targetAt(ev.clientX, ev.clientY));
+        return;
+      }
+      if (this.sel && this.sel.kind === 'target') { this.sel = null; this.arrow(null); this.markTargets(null); }
+      d.ghost.style.opacity = '';
+      if (d.isMinion) {
+        const over = this.inBoardZone(ev.clientX, ev.clientY) && g.P(this.view()).board.length < 7;
+        const idx = over ? this.insertIndex(ev.clientX) : null;
+        d.small = over;
+        if (idx !== d.idx) { d.idx = idx; this.openGap(idx); }
+        d.ghost.classList.toggle('armed', over);
+      } else {
+        d.small = false;
+        d.ghost.classList.toggle('armed', above);
+      }
+      this.moveGhost(ev.clientX, ev.clientY);
     },
     dup(ev) {
       const d = this.drag;
       this.drag = null;
       if (!d) return;
-      if (d.ghost) d.ghost.remove();
       const g = this.g;
       const me = this.view();
       if (!d.moved) {
-        /* einfacher Klick: Auswahl-Modus mit Pfeil, der der Maus folgt */
         if (d.kind === 'card') { if (d.touch) return this.preview(d.e, true); return this.startPlay(d.e); }
         if (d.kind === 'power' && !g.powerTargets(me)) return this.act({ type: 'power' });
         if (this.sel && this.sel.targets) this.followArrow(d.from);
@@ -677,23 +728,66 @@
       if (d.kind === 'attack' || d.kind === 'power') {
         this.arrow(null);
         if (hit) return this.sel.finish(hit);
-        if (d.kind === 'power' && !this.sel) return;
         return this.cancel();
       }
       const c = g.def(d.e);
-      const handTop = app.querySelector('#myhand').getBoundingClientRect().top;
-      const pos = this.dropPos;
-      this.dropPos = null;
       if (this.sel && this.sel.kind === 'target') {
         this.arrow(null);
-        if (hit) return this.sel.finish(hit);
-        return this.cancel();
+        if (hit) { d.ghost.remove(); return this.sel.finish(hit); }
+        this.sel = null; this.markTargets(null);
+        return this.returnGhost(d);
       }
-      if (ev.clientY > handTop - 10) { this.render(); return; }
-      this.dropAt = [ev.clientX, ev.clientY];
-      if (c.choose) return this.startPlay(d.e, c.type === 'minion' ? (pos == null ? g.P(me).board.length : pos) : undefined);
-      this.sel = { kind: 'pos', id: d.e.id, card: d.e, choice: undefined };
-      this.withPos(c.type === 'minion' ? (pos == null ? g.P(me).board.length : pos) : undefined);
+      if (d.isMinion) {
+        if (d.idx == null) { this.openGap(null); return this.returnGhost(d); }
+        const pos = d.idx;
+        if (c.choose) { d.ghost.remove(); this.openGap(null); return this.startPlay(d.e, pos); }
+        const tl = g.targetsFor(d.e);
+        if (tl && tl.length) {
+          /* Diener bleibt in seiner Lücke stehen, bis das Kampfschrei-Ziel gewählt ist */
+          const gapX = d.boardEls.length ? null : null;
+          void gapX;
+          d.small = true;
+          this.pending = d;
+          const slotX = this.slotCenter(d, pos);
+          d.ghost.classList.add('settle');
+          d.ghost.style.transform = `translate3d(${slotX[0]}px, ${slotX[1]}px, 0) translate(-50%, -50%) scale(.72)`;
+          this.sel = { kind: 'target', id: d.e.id, targets: tl, finish: (x) => { this.clearPending(); this.act({ type: 'play', id: d.e.id, pos, target: x.id }); } };
+          this.markTargets(tl);
+          const r = document.getElementById('stage').getBoundingClientRect();
+          this.followArrow([r.left + slotX[0] * this.scale, r.top + slotX[1] * this.scale]);
+          return;
+        }
+        d.ghost.remove();
+        return this.act({ type: 'play', id: d.e.id, pos });
+      }
+      if (ev.clientY > d.handTop - 8) return this.returnGhost(d);
+      d.ghost.remove();
+      if (c.choose) return this.startPlay(d.e);
+      this.act({ type: 'play', id: d.e.id });
+    },
+    slotCenter(d, pos) {
+      const r = d.boardRect;
+      const n = d.boardEls.length;
+      const w = n ? d.boardEls[0].offsetWidth * this.scale : 90 * this.scale;
+      let cx;
+      if (!n) cx = r.left + r.width / 2;
+      else if (pos <= 0) cx = d.centers[0] - w / 2 - 6 * this.scale;
+      else if (pos >= n) cx = d.centers[n - 1] + w / 2 + 6 * this.scale;
+      else cx = (d.centers[pos - 1] + d.centers[pos]) / 2;
+      return this.toStage(cx, r.top + r.height / 2);
+    },
+    clearPending() {
+      const d = this.pending;
+      this.pending = null;
+      if (d && d.ghost) d.ghost.remove();
+    },
+    cancelPending() {
+      const d = this.pending;
+      this.pending = null;
+      this.sel = null;
+      this.arrow(null);
+      this.markTargets(null);
+      if (d) { this.openGap(null); this.returnGhost(d); }
     },
     followArrow(from) {
       const mv = (m) => { if (!this.sel || !this.sel.targets) { removeEventListener('pointermove', mv); this.arrow(null); return; } this.arrow(from, [m.clientX, m.clientY], !!this.targetAt(m.clientX, m.clientY)); };

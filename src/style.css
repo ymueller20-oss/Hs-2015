@@ -281,8 +281,6 @@ h1 { color: var(--gold); font-size: 2.4em; text-shadow: 0 3px 0 #000; }
 .timer { color: #ff8a70; font-weight: bold; }
 
 /* Ziehen und Zielen */
-.ghost { position: fixed; z-index: 90; pointer-events: none; transform: translate(-50%, -60%) rotate(-3deg) scale(1.1); transition: transform .1s; }
-.ghost.armed { transform: translate(-50%, -60%) scale(.9); filter: drop-shadow(0 0 14px var(--green)); }
 #arrow { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 95; display: none; }
 #arrow path#arrowpath { fill: none; stroke: #ff6a4a; stroke-width: 9; stroke-linecap: round; stroke-dasharray: 2 16; filter: drop-shadow(0 0 6px #ff3a1a); animation: march .6s linear infinite; }
 #arrow.ok path#arrowpath { stroke: #ffe39a; filter: drop-shadow(0 0 8px #ffb030); }
@@ -376,7 +374,7 @@ h1 { color: var(--gold); font-size: 2.4em; text-shadow: 0 3px 0 #000; }
 .pv-pop .heroinfo { background: #120d09ee; }
 .stage .secret { width: 24px; height: 24px; }
 .showcase { left: 25%; }
-body.portrait .game::after {
+body.portrait-unused .game::after {
   content: '⟳  Bitte das Gerät ins Querformat drehen'; position: fixed; inset: auto 0 0 0; padding: 14px; text-align: center;
   background: #000d; color: var(--gold); font-family: var(--f-title); z-index: 200;
 }
@@ -384,3 +382,37 @@ body.portrait .game::after {
   .game { grid-template-columns: none; min-height: 0; }
   .stage .pile { display: flex; }
 }
+
+/* ===== Ziehen: Geisterkarte folgt dem Finger 1:1, Diener weichen weich aus ===== */
+.ghost { position: absolute; left: 0; top: 0; z-index: 60; pointer-events: none; will-change: transform; filter: drop-shadow(0 18px 18px #000c); }
+.ghost .card { box-shadow: 0 0 0 3px var(--gold), 0 10px 30px #000; }
+.ghost.armed .card { box-shadow: 0 0 0 3px var(--green), 0 0 26px var(--green); }
+.ghost.back, .ghost.settle { transition: transform .2s cubic-bezier(.3,.8,.3,1); }
+.stage .hand .card.lifted { opacity: 0; transition: none; }
+.stage .board .minion { transition: transform .16s cubic-bezier(.3,.8,.3,1); }
+.minion.enter { animation: enter .28s cubic-bezier(.2,1.2,.4,1); }
+@keyframes enter { from { transform: translateY(-14px) scale(1.12); opacity: .4; } }
+.stage .hand .card { touch-action: none; -webkit-user-select: none; user-select: none; }
+
+/* ===== Hochformat (Handy hochkant): Bühne 720×1280 ===== */
+.stage.portrait { width: 720px; height: 1280px; --cw: 128px; --mw: 88px; font-size: 16px; }
+.stage.portrait .table { grid-template-rows: 96px 150px 1fr 0 1fr 150px 236px; padding: 0 10px; }
+.stage.portrait .opp-hand { height: 96px; align-items: flex-end; }
+.stage.portrait .table::before { inset: 10% 2% 22%; border-radius: 46% / 30%; }
+.stage.portrait .opp-hand .card { --cw: 54px; margin: 0 -12px; transform: translateY(-30%) rotate(var(--rot)); }
+.stage.portrait .hero-row { gap: 12px; }
+.stage.portrait .hero { width: 128px; }
+.stage.portrait .mana { min-width: 104px; }
+.stage.portrait .crystals i { width: 9px; height: 12px; }
+.stage.portrait .board { gap: 6px; padding: 4px 0; }
+.stage.portrait .hand { height: 230px; align-items: flex-end; }
+.stage.portrait .hand .card { margin: 0 calc(var(--cw) * -.2); transform: translateY(calc(30px + var(--dy))) rotate(var(--rot)); }
+.stage.portrait .hand.cramped .card { margin: 0 calc(var(--cw) * -.34); }
+.stage.portrait .hand .card:hover { transform: translateY(-40px) scale(1.25) rotate(0); }
+.stage.portrait .turnbtn { right: 8px; padding: 10px 12px; min-width: 104px; font-size: .85em; }
+.stage.portrait .topbar .status { font-size: .85em; }
+.stage.portrait .hint { top: 44px; }
+.stage.portrait .pv-pop, .stage.portrait .pv-pop.right { left: 50%; right: auto; top: 44%; transform: translate(-50%, -50%); }
+.stage.portrait .pv-pop .card { --cw: 300px; }
+.stage.portrait .logpanel { width: auto; right: 10px; bottom: 260px; }
+.stage.portrait .turn-banner { font-size: 2.6em; }
