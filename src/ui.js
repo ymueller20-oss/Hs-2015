@@ -39,6 +39,11 @@
     const u = HS.artUrl(cardId);
     return u ? `<img src="${u}" alt="" draggable="false" loading="lazy">` : `<span class="noart">${GLYPH[cls] || '◆'}</span>`;
   }
+  /* lange Regeltexte etwas kleiner setzen, damit sie in das Textfeld passen */
+  function textSize(t, wide) {
+    const n = String(t).replace(/<[^>]+>/g, '').length * (wide ? 0.8 : 1);
+    return n > 92 ? 't3' : n > 62 ? 't2' : '';
+  }
   function cardHTML(g, e, cardId, extra) {
     const d = e ? g.def(e) : HS.card(cardId);
     const cost = e && g ? g.cost(e) : d.cost;
@@ -47,17 +52,17 @@
     if (d.type === 'minion' || d.type === 'weapon') {
       const a = e && g ? g.atk(e) : d.atk;
       const h = e && g ? g.hp(e) : d.hp;
-      stats = `<div class="c-atk ${a > d.atk ? 'up' : a < d.atk ? 'dn' : ''}">${a}</div><div class="c-hp ${h > d.hp ? 'up' : h < d.hp ? 'dn' : ''}">${h}</div>`;
+      stats = `<div class="c-atk ${a > d.atk ? 'up' : a < d.atk ? 'dn' : ''}"><b>${a}</b><i>${d.type === 'weapon' ? '⚔' : '†'}</i></div><div class="c-hp ${h > d.hp ? 'up' : h < d.hp ? 'dn' : ''}"><b>${h}</b><i>${d.type === 'weapon' ? '◆' : '♥'}</i></div>`;
     }
     const text = e && g ? g.text(e) : HS.textOf(d);
     const type = (TYPE[d.type] || '') + (d.race ? ' — ' + HS.RACES[d.race] : d.secret ? ' — Geheimnis' : '');
     const nm = d.name.length > 22 ? 'xlong' : d.name.length > 15 ? 'long' : '';
     return `<div class="card cls-${d.cls} rar-${d.rarity} type-${d.type} ${extra || ''}" ${e ? `data-eid="${e.id}"` : `data-cid="${d.id}"`}>
-      <div class="c-name ${nm}">${esc(d.name)}</div>
-      <div class="c-cost ${costCls}">${cost}</div>
+      <div class="c-cost ${costCls}"><b>${cost}</b><i>♦</i></div>
       <div class="c-art">${artTag(d.id, d.cls)}</div>
-      <div class="c-type">${type}<i class="c-gem"></i></div>
-      <div class="c-text"><div>${fmtText(text)}</div></div>${stats}</div>`;
+      <div class="c-name ${nm}"><span>${esc(d.name)}</span></div>
+      <div class="c-type"><i class="c-gem"></i>${type}<i class="c-gem"></i></div>
+      <div class="c-text ${textSize(text, d.type === 'spell')}"><div>${fmtText(text)}</div></div>${stats}</div>`;
   }
 
   /* ---------------- Deckauswahl ---------------- */
@@ -961,7 +966,7 @@
       if (d.choose) {
         const dlg = showModal(`<h2>${esc(d.name)} – Wählt aus:</h2><div class="cards">${d.choose.map((o, i) => {
           const ok = g.canPlay(me, e, i);
-          return `<div class="card cls-${d.cls} type-spell choice" data-i="${i}" style="${ok ? '' : 'opacity:.35;pointer-events:none'}"><div class="c-name">${esc(o.name)}</div><div class="c-art">${artTag(d.id, d.cls)}</div><div class="c-type">Wählt aus</div><div class="c-text"><div>${fmtText(o.text.replace(/\$(\d+)/g, (_, n) => { const v = g.spellDmg(e, +n); return v !== +n ? `*${v}*` : n; }))}</div></div></div>`;
+          return `<div class="card cls-${d.cls} type-spell choice" data-i="${i}" style="${ok ? '' : 'opacity:.35;pointer-events:none'}"><div class="c-name">${esc(o.name)}</div><div class="c-art">${artTag(d.id, d.cls)}</div><div class="c-type">Wählt aus</div><div class="c-text ${textSize(o.text, true)}"><div>${fmtText(o.text.replace(/\$(\d+)/g, (_, n) => { const v = g.spellDmg(e, +n); return v !== +n ? `*${v}*` : n; }))}</div></div></div>`;
         }).join('')}</div><button id="x">Abbrechen</button>`);
         dlg.querySelector('#x').onclick = () => { hideModal(); this.cancel(); };
         dlg.querySelectorAll('[data-i]').forEach((c) => (c.onclick = () => {
