@@ -479,26 +479,25 @@
       const anyMove = act && myTurn && HS.legalActions(g, me).length > 0;
       const status = g.s.phase === 'over' ? 'Spiel beendet' : this.busy ? 'Sende …' : myTurn ? (this.mode === 'hotseat' ? `${esc(g.P(me).name)} ist am Zug` : 'Dein Zug') : `${esc(g.P(g.cur).name)} ist am Zug`;
       const hint = sel ? (sel.kind === 'pos' ? 'Platz für den Diener wählen' : sel.kind === 'attack' ? 'Angriffsziel wählen' : 'Ziel wählen') + ' · Rechtsklick/Esc bricht ab' : act && myTurn ? 'Karten aufs Brett ziehen · Diener auf Ziele ziehen' : '';
-      const lastShow = this.lastPlayed ? cardHTML(null, null, this.lastPlayed.card) : '';
-      app.innerHTML = `<div class="game">
-        <aside class="preview"><div class="pv-title">Vorschau</div><div class="pv-card" id="pv">${lastShow}</div><div class="pv-sub" id="pvsub">${this.lastPlayed ? esc(this.lastPlayed.who) + ' spielte' : 'Über eine Karte fahren'}</div></aside>
+      const logOpen = this.logOpen ? '' : 'hidden';
+      app.innerHTML = `<div class="game"><div class="stage" id="stage">
         <div class="table">
           <div class="opp-hand">${oppHand}</div>
           <div class="hero-row opp">${pile(op)}${manaHTML(op)}${weaponHTML(op)}${heroHTML(op)}${powerHTML(op)}</div>
           <div class="board opp">${boardHTML(op)}</div>
-          <div class="midline"><button class="turnbtn ${act && myTurn && !anyMove ? 'ready' : ''} ${myTurn ? 'mine' : ''}" id="endturn" ${act && myTurn ? '' : 'disabled'}>${myTurn ? 'Zug beenden' : 'Gegnerzug'}</button></div>
+          <div class="midline"></div>
           <div class="board me" id="myboard">${boardHTML(me)}</div>
           <div class="hero-row me">${pile(me)}${manaHTML(me)}${weaponHTML(me)}${heroHTML(me)}${powerHTML(me)}</div>
           <div class="hand ${n > 7 ? 'cramped' : ''}" id="myhand">${myHand}</div>
-          <div class="turn-banner" id="banner"></div>
         </div>
-        <aside class="sidebar">
-          <div class="status"><b>${status}</b><span>Runde ${Math.ceil(g.s.turn / 2)}</span></div>
-          <div class="timer"></div>
-          <div class="hint">${hint}</div>
-          <div class="log">${g.s.log.slice(-120).map((l) => `<div class="${l.startsWith('—') ? 'turn' : ''}">${esc(l)}</div>`).join('')}</div>
-          <div class="row"><button id="concede" class="danger">Aufgeben</button><button id="tomenu">Menü</button></div>
-        </aside></div>`;
+        <button class="turnbtn ${act && myTurn && !anyMove ? 'ready' : ''} ${myTurn ? 'mine' : ''}" id="endturn" ${act && myTurn ? '' : 'disabled'}>${myTurn ? 'Zug beenden' : 'Gegnerzug'}</button>
+        <div class="topbar"><button id="logbtn" title="Verlauf">☰ Verlauf</button><div class="status"><b>${status}</b> · Runde ${Math.ceil(g.s.turn / 2)} <span class="timer"></span></div><button id="tomenu">Menü</button><button id="concede" class="danger">Aufgeben</button></div>
+        <div class="hint">${hint}</div>
+        <div class="logpanel ${logOpen}" id="logpanel"><div class="log">${g.s.log.slice(-150).map((l) => `<div class="${l.startsWith('—') ? 'turn' : ''}">${esc(l)}</div>`).join('')}</div></div>
+        <div class="pv-pop hidden" id="pv"></div>
+        <div class="turn-banner" id="banner"></div>
+      </div></div>`;
+      this.fit();
       const log = app.querySelector('.log');
       log.scrollTop = log.scrollHeight;
       this.knownIds = nowIds;
@@ -506,6 +505,15 @@
       this.flashIds = null;
       if (myTurn && act && this.bannerTurn !== g.s.turn) { this.bannerTurn = g.s.turn; this.banner('Dein Zug'); }
       this.bind();
+    },
+    fit() {
+      const st = document.getElementById('stage');
+      if (!st) return;
+      const W = 1280, H = 720;
+      const sc = Math.min(innerWidth / W, innerHeight / H);
+      this.scale = sc;
+      st.style.transform = `translate(${(innerWidth - W * sc) / 2}px, ${(innerHeight - H * sc) / 2}px) scale(${sc})`;
+      document.body.classList.toggle('portrait', innerHeight > innerWidth * 1.1 && innerWidth < 900);
     },
     banner(text) {
       const b = app.querySelector('#banner');
@@ -527,6 +535,7 @@
       app.querySelector('#endturn').onclick = () => { if (this.canAct() && this.g.cur === this.view()) this.act({ type: 'end' }); };
       app.querySelector('#concede').onclick = () => { if (this.g.s.phase !== 'over') ask('Wirklich aufgeben?', () => this.concede()); };
       app.querySelector('#tomenu').onclick = () => { if (this.g.s.phase === 'over') this.menu(); else ask('Partie verlassen?', () => this.menu()); };
+      app.querySelector('#logbtn').onclick = () => { this.logOpen = !this.logOpen; app.querySelector('#logpanel').classList.toggle('hidden', !this.logOpen); };
       app.querySelectorAll('.slot').forEach((s) => (s.onclick = (ev) => { ev.stopPropagation(); this.withPos(+s.dataset.slot); }));
       const table = app.querySelector('.table');
       table.onpointerdown = (ev) => this.down(ev);
@@ -577,7 +586,8 @@
       const g = this.g;
       const t = ev.target.closest('[data-eid],[data-power],.slot');
       if (!t || t.classList.contains('slot')) { if (this.sel && this.sel.kind !== 'pos') this.cancel(); return; }
-      if (!this.canAct()) return;
+      const touchPv = () => { if (ev.pointerType !== 'mouse') { const pe = t.dataset.power != null ? this.g.power(+t.dataset.power) : this.g.ent(+t.dataset.eid); if (pe) this.preview(pe, true); } };
+      if (!this.canAct()) return touchPv();
       const me = this.view();
       if (this.sel && this.sel.targets) {
         const hit = this.sel.targets.find((x) => x.id === +t.dataset.eid);
@@ -593,9 +603,10 @@
         if (!g.canPlay(me, e)) { toast(g.cost(e) > g.P(me).mana ? 'Nicht genug Mana.' : 'Diese Karte kann gerade nicht gespielt werden.'); return; }
         kind = 'card';
       } else if (e.owner === me && g.inPlay(e) && g.canAttack(e)) kind = 'attack';
-      if (!kind) return;
+      if (!kind) return touchPv();
       ev.preventDefault();
-      this.drag = { kind, e, el: t, x0: ev.clientX, y0: ev.clientY, moved: false, from: this.center(t) };
+      this.hidePreview();
+      this.drag = { kind, e, el: t, x0: ev.clientX, y0: ev.clientY, moved: false, from: this.center(t), touch: ev.pointerType !== 'mouse' };
       const move = (m) => this.dmove(m);
       const up = (u) => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); this.dup(u); };
       addEventListener('pointermove', move);
@@ -617,6 +628,7 @@
         if (d.kind === 'card') {
           d.ghost = document.createElement('div');
           d.ghost.className = 'ghost';
+          d.ghost.style.setProperty('--cw', Math.round(118 * (this.scale || 1) * 1.1) + 'px');
           d.ghost.innerHTML = cardHTML(this.g, d.e);
           document.body.append(d.ghost);
           this.render();
@@ -656,7 +668,7 @@
       const me = this.view();
       if (!d.moved) {
         /* einfacher Klick: Auswahl-Modus mit Pfeil, der der Maus folgt */
-        if (d.kind === 'card') return this.startPlay(d.e);
+        if (d.kind === 'card') { if (d.touch) return this.preview(d.e, true); return this.startPlay(d.e); }
         if (d.kind === 'power' && !g.powerTargets(me)) return this.act({ type: 'power' });
         if (this.sel && this.sel.targets) this.followArrow(d.from);
         return;
@@ -741,44 +753,44 @@
       }
       this.act(base);
     },
-    preview(e) {
+    preview(e, sticky) {
       const g = this.g;
       const pv = document.getElementById('pv');
-      const sub = document.getElementById('pvsub');
       if (!pv || !e) return;
       if ((e.zone === 'hand' && (e.owner !== this.view() || (this.mode === 'hotseat' && this.shownSeat !== e.owner))) || e.zone === 'deck') return;
-      if (e.zone === 'secret' && (e.owner !== this.view() || (this.mode === 'hotseat' && this.shownSeat !== e.owner))) { pv.innerHTML = '<div class="card back"></div>'; sub.textContent = 'Verdecktes Geheimnis'; return; }
-      const extra = [];
-      if (g.isHero(e)) {
-        pv.innerHTML = `<div class="heroinfo cls-${g.P(e.owner).cls}"><b>${esc(g.P(e.owner).name)}</b><span>Leben ${g.hp(e)}/${g.maxHp(e)}</span>${e.armor ? `<span>Rüstung ${e.armor}</span>` : ''}${g.atk(e) ? `<span>Angriff ${g.atk(e)}</span>` : ''}</div>`;
-        sub.textContent = HS.CLASSES[g.P(e.owner).cls].name;
-        return;
-      }
-      if (g.def(e).type === 'power') {
-        pv.innerHTML = `<div class="heroinfo"><b>${esc(g.def(e).name)}</b><span>Kosten ${g.def(e).cost}</span><p>${fmtText(g.text(e))}</p></div>`;
-        sub.textContent = 'Heldenfähigkeit';
-        return;
-      }
-      if (g.isMinion(e)) {
-        if (e.frozen) extra.push('Eingefroren');
-        if (e.silenced) extra.push('Zum Schweigen gebracht');
-        if (g.has(e, 'immune')) extra.push('Immun');
-        for (const x of e.ench) {
-          const bits = [];
-          if (x.atk) bits.push((x.atk > 0 ? '+' : '') + x.atk + ' Angriff');
-          if (x.hp) bits.push('+' + x.hp + ' Leben');
-          if (x.setAtk != null) bits.push('Angriff = ' + x.setAtk);
-          if (x.setHp != null) bits.push('Leben = ' + x.setHp);
-          if (x.kw && x.kw.length) bits.push(x.kw.map((k) => ({ taunt: 'Spott', stealth: 'Verstohlenheit', immune: 'Immun', divineShield: 'Gottesschild', windfury: 'Windzorn', charge: 'Ansturm' }[k] || k)).join(', '));
-          if (x.sd) bits.push('Zauberschaden +' + x.sd);
-          if (x.card && HS.CARDS[x.card] && HS.CARDS[x.card].text) bits.push(HS.CARDS[x.card].text.replace(/<[^>]+>/g, ''));
-          if (x.expire) bits.push('(diesen Zug)');
-          if (bits.length) extra.push(bits.join(' '));
+      let html;
+      if (e.zone === 'secret' && (e.owner !== this.view() || (this.mode === 'hotseat' && this.shownSeat !== e.owner))) html = '<div class="card back"></div><div class="pv-ench">Verdecktes Geheimnis</div>';
+      else if (g.isHero(e)) html = `<div class="heroinfo cls-${g.P(e.owner).cls}"><b>${esc(g.P(e.owner).name)}</b><span>${HS.CLASSES[g.P(e.owner).cls].name}</span><span>Leben ${g.hp(e)}/${g.maxHp(e)}</span>${e.armor ? `<span>Rüstung ${e.armor}</span>` : ''}${g.atk(e) ? `<span>Angriff ${g.atk(e)}</span>` : ''}</div>`;
+      else if (g.def(e).type === 'power') html = `<div class="heroinfo"><b>${esc(g.def(e).name)}</b><span>Heldenfähigkeit · Kosten ${g.def(e).cost}</span><p>${fmtText(g.text(e))}</p></div>`;
+      else {
+        const extra = [];
+        if (g.isMinion(e)) {
+          if (e.frozen) extra.push('Eingefroren');
+          if (e.silenced) extra.push('Zum Schweigen gebracht');
+          if (g.has(e, 'immune')) extra.push('Immun');
+          for (const x of e.ench) {
+            const bits = [];
+            if (x.atk) bits.push((x.atk > 0 ? '+' : '') + x.atk + ' Angriff');
+            if (x.hp) bits.push('+' + x.hp + ' Leben');
+            if (x.setAtk != null) bits.push('Angriff = ' + x.setAtk);
+            if (x.setHp != null) bits.push('Leben = ' + x.setHp);
+            if (x.kw && x.kw.length) bits.push(x.kw.map((k) => ({ taunt: 'Spott', stealth: 'Verstohlenheit', immune: 'Immun', divineShield: 'Gottesschild', windfury: 'Windzorn', charge: 'Ansturm' }[k] || k)).join(', '));
+            if (x.sd) bits.push('Zauberschaden +' + x.sd);
+            if (x.card && HS.CARDS[x.card] && HS.CARDS[x.card].text) bits.push(HS.CARDS[x.card].text.replace(/<[^>]+>/g, ''));
+            if (x.expire) bits.push('(diesen Zug)');
+            if (bits.length) extra.push(bits.join(' '));
+          }
         }
+        html = cardHTML(g, e) + (extra.length ? `<div class="pv-ench">${extra.map(esc).join('<br>')}</div>` : '');
       }
-      pv.innerHTML = cardHTML(g, e) + (extra.length ? `<div class="pv-ench">${extra.map(esc).join('<br>')}</div>` : '');
-      sub.textContent = e.zone === 'hand' ? 'Auf deiner Hand' : e.owner === this.view() ? 'Deine Seite' : 'Gegnerische Seite';
+      pv.innerHTML = html;
+      pv.classList.remove('hidden');
+      const right = e.owner === this.view() && e.zone !== 'hand' ? false : true;
+      pv.classList.toggle('right', e.zone === 'hand' || !right);
+      clearTimeout(this._pvT);
+      if (sticky) this._pvT = setTimeout(() => pv.classList.add('hidden'), 2600);
     },
+    hidePreview() { const pv = document.getElementById('pv'); if (pv) pv.classList.add('hidden'); },
 
     /* ================= Deck-Editor ================= */
     editorSetup() {
@@ -895,14 +907,16 @@
     return { name: String(o.n || 'Importiertes Deck').slice(0, 40), cls: o.c, cards: HS.fixDeck(o.c, o.k.map(String)).slice(0, 30) };
   }
 
-  /* Vorschau beim Überfahren */
-  document.addEventListener('mouseover', (ev) => {
-    if (UI.screen !== 'game' || !UI.g || UI.drag) return;
+  /* Vorschau beim Überfahren (Maus) */
+  document.addEventListener('pointerover', (ev) => {
+    if (ev.pointerType !== 'mouse' || UI.screen !== 'game' || !UI.g || UI.drag) return;
     const t = ev.target.closest('.table [data-eid]');
-    if (!t) return;
+    if (!t) { UI.hidePreview(); return; }
+    if (t.closest('#myhand')) { UI.hidePreview(); return; }
     const e = UI.g.ent(+t.dataset.eid);
     if (e) UI.preview(e);
   });
+  addEventListener('resize', () => { if (UI.screen === 'game') UI.fit(); });
   document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && UI.screen === 'game') UI.cancel(); });
 
   window.UI = UI;

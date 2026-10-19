@@ -349,3 +349,38 @@ h1 { color: var(--gold); font-size: 2.4em; text-shadow: 0 3px 0 #000; }
   .mana { min-width: 70px; }
   .pile { display: none; }
 }
+
+/* ===== App-Bühne: festes 1280×720-Spielfeld, wird auf jeden Bildschirm skaliert ===== */
+.game { position: fixed; inset: 0; display: block; height: auto; overflow: hidden; background: #0b0806; touch-action: none; }
+.stage { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; transform-origin: 0 0; --cw: 118px; --mw: 92px; font-size: 15px; }
+.stage .table { position: absolute; inset: 0; grid-template-rows: 46px 112px 1fr 0 1fr 112px 96px; padding: 0 150px 0 150px; border-radius: 0; }
+.stage .opp-hand { height: 46px; }
+.stage .opp-hand .card { --cw: 62px; transform: translateY(-55%) rotate(var(--rot)); }
+.stage .hero-row { height: 112px; gap: 22px; }
+.stage .board { min-height: 0; padding: 4px; }
+.stage .hand { height: 96px; }
+.stage .hand .card { transform: translateY(calc(48px + var(--dy))) rotate(var(--rot)); }
+.stage .hand .card:hover { transform: translateY(-120px) scale(1.7) rotate(0); }
+.turnbtn { position: absolute; right: 22px; top: 50%; transform: translateY(-50%); margin: 0; z-index: 6; min-width: 120px; }
+.topbar { position: absolute; top: 8px; left: 10px; right: 10px; display: flex; gap: 8px; align-items: center; pointer-events: none; z-index: 7; }
+.topbar > * { pointer-events: auto; }
+.topbar .status { flex: 1; text-align: center; color: var(--muted); font-size: .9em; pointer-events: none; }
+.topbar .status b { font-family: var(--f-title); color: var(--gold); }
+.topbar button { padding: 5px 10px; font-size: .78em; }
+.stage .hint { position: absolute; left: 0; right: 0; top: 34px; text-align: center; color: #ffe39a; font-size: .85em; text-shadow: 0 1px 3px #000; pointer-events: none; z-index: 6; min-height: 0; }
+.logpanel { position: absolute; left: 10px; top: 44px; bottom: 120px; width: 280px; background: #120d09ee; border: 1px solid var(--line); border-radius: 8px; padding: 8px; z-index: 8; display: flex; }
+.logpanel .log { flex: 1; }
+.pv-pop { position: absolute; left: 24px; top: 50%; transform: translateY(-50%); z-index: 9; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.pv-pop.right { left: auto; right: 160px; }
+.pv-pop .card { --cw: 230px; }
+.pv-pop .heroinfo { background: #120d09ee; }
+.stage .secret { width: 24px; height: 24px; }
+.showcase { left: 25%; }
+body.portrait .game::after {
+  content: '⟳  Bitte das Gerät ins Querformat drehen'; position: fixed; inset: auto 0 0 0; padding: 14px; text-align: center;
+  background: #000d; color: var(--gold); font-family: var(--f-title); z-index: 200;
+}
+@media (max-width: 1000px) {
+  .game { grid-template-columns: none; min-height: 0; }
+  .stage .pile { display: flex; }
+}
