@@ -852,7 +852,12 @@
       if (ev.button === 2) return;
       const g = this.g;
       const t = ev.target.closest('[data-eid],[data-power],.slot');
-      if (this.pending) { this.cancelPending(); return; }
+      if (this.pending) {
+        /* Diener wartet in seiner Lücke auf das Kampfschrei-Ziel: Tipp auf ein Ziel spielt ihn aus, alles andere bricht ab */
+        const hit = t && this.sel && this.sel.targets && this.sel.targets.find((x) => x.id === +t.dataset.eid);
+        if (hit) { ev.preventDefault(); this.arrow(null); this.sel.finish(hit); } else this.cancelPending();
+        return;
+      }
       if (!t || t.classList.contains('slot')) { if (this.sel && this.sel.kind !== 'pos') this.cancel(); return; }
       const touchPv = () => { if (ev.pointerType !== 'mouse') { const pe = t.dataset.power != null ? g.power(+t.dataset.power) : g.ent(+t.dataset.eid); if (pe) this.preview(pe, true); } };
       if (!this.canAct()) return touchPv();
