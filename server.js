@@ -10,7 +10,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const ROOT = __dirname;
-for (const f of ['engine.js', 'cards/_lib.js', 'cards/basic.js', 'cards/classic_class.js', 'cards/classic_neutral.js', 'cards/naxx.js', 'cards/gvg.js', 'cards/brm.js', 'ai.js', 'decks.js']) {
+for (const f of ['engine.js', 'cards/_lib.js', 'cards/basic.js', 'cards/classic_class.js', 'cards/classic_neutral.js', 'cards/naxx.js', 'cards/gvg.js', 'cards/brm.js', 'cards/conditions.js', 'ai.js', 'decks.js']) {
   require(path.join(ROOT, 'src', f));
 }
 const HS = global.HS;

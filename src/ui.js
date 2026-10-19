@@ -448,7 +448,7 @@
         if (!known.has(m.id)) k.push('enter');
         if (d.rarity === 'legendary') k.push('legend');
         return `<div class="${k.join(' ')}" data-eid="${m.id}"><div class="m-art">${artTag(m.card, d.cls)}</div><div class="m-frame"></div>
-          <div class="m-icons">${ic.join('')}</div>
+          <div class="m-icons">${ic.join('')}</div>${d.race ? `<div class="m-race">${HS.RACES[d.race]}</div>` : ''}
           <div class="m-atk ${a > (d.atk || 0) ? 'up' : a < (d.atk || 0) ? 'dn' : ''}">${a}</div><div class="m-hp ${h < mx ? 'dn' : mx > d.hp ? 'up' : ''}">${h}</div>${floatFor(m)}</div>`;
       };
       const boardHTML = (i) => {
@@ -505,7 +505,8 @@
         if (hideOwn) return `<div class="card back" style="${style}"></div>`;
         const pl = act && g.cur === me && g.canPlay(me, c) && !sel;
         const dragging = this.drag && this.drag.e === c && this.drag.moved;
-        return cardHTML(g, c, null, `${pl ? 'playable' : ''} ${sel && sel.id === c.id ? 'selected' : ''} ${dragging ? 'lifted' : ''}`).replace('<div class="card', `<div style="${style}" class="card`);
+        const cond = pl && g.def(c).cond && g.def(c).cond(g, c);
+        return cardHTML(g, c, null, `${pl ? 'playable' : ''} ${cond ? 'cond' : ''} ${sel && sel.id === c.id ? 'selected' : ''} ${dragging ? 'lifted' : ''}`).replace('<div class="card', `<div style="${style}" class="card`);
       }).join('');
       const on = g.hand(op).length;
       const oppHand = g.hand(op).map((c, i) => `<div class="card back" style="--rot:${((i - (on - 1) / 2) * -4).toFixed(1)}deg"></div>`).join('');

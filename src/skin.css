@@ -108,3 +108,10 @@
 @keyframes popup { 0% { opacity: 0; transform: translate(-50%, -30%) scale(.6); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); } 70% { opacity: 1; transform: translate(-50%, -80%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -110%); } }
 .showcase.secretshow { left: 50%; animation: showcase 2.3s ease forwards; display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .showcase .sc-label { font-family: var(--f-title); font-size: 22px; color: #e0b0ff; text-shadow: 0 2px 4px #000, 0 0 16px #b05cff; white-space: nowrap; }
+
+/* Bedingung erfüllt: Gold-Glanz statt Grün */
+.stage .hand .card.playable.cond { box-shadow: 0 0 0 3px #ffd34a, 0 0 22px #ffb020, 0 0 40px #ffb02088 !important; }
+/* Typ-Band unter dem Porträt */
+.stage .minion .m-race { position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%); z-index: 2; padding: 1px 7px; border-radius: 3px;
+  background: linear-gradient(#3a2a18, #1a0f06); border: 1px solid #c9952e; color: #f4dfa8; font-family: var(--f-title); font-size: 9px; letter-spacing: .5px; white-space: nowrap; }
+.stage .minion .m-icons { bottom: 22%; }
