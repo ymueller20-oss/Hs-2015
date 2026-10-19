@@ -36,54 +36,65 @@
   };
 
   let anim = null;
+  /* vorgezeichnete Leuchtpunkte: einmal erzeugen, danach nur kopieren (schnell) */
+  const sprites = new Map();
+  function sprite(color, kind) {
+    const key = color + kind;
+    if (sprites.has(key)) return sprites.get(key);
+    const S = kind === 'fog' ? 128 : 32;
+    const c = document.createElement('canvas');
+    c.width = c.height = S;
+    const x = c.getContext('2d');
+    const g = x.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+    if (kind === 'fog') { g.addColorStop(0, hexA(color, 0.14)); g.addColorStop(1, hexA(color, 0)); }
+    else if (kind === 'glow') { g.addColorStop(0, hexA(color, 0.95)); g.addColorStop(0.25, hexA(color, 0.5)); g.addColorStop(1, hexA(color, 0)); }
+    else { g.addColorStop(0, hexA(color, 0.9)); g.addColorStop(0.6, hexA(color, 0.7)); g.addColorStop(1, hexA(color, 0)); }
+    x.fillStyle = g;
+    x.fillRect(0, 0, S, S);
+    sprites.set(key, c);
+    return c;
+  }
   HS.startAmbience = function (canvas, arenaId) {
     HS.stopAmbience();
     if (!canvas || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const a = HS.arena(arenaId);
+    const K = 0.5; /* halbe Auflösung */
+    const W = canvas.width, H = canvas.height;
+    canvas.width = Math.round(W * K); canvas.height = Math.round(H * K);
     const ctx = canvas.getContext('2d');
+    ctx.scale(K, K);
     let seed = 7;
     const r = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-    const W = canvas.width, H = canvas.height;
     const layers = [a.fx, a.fx2].filter(Boolean).map((k) => ({ k, def: FX[k], ps: [] }));
     for (const L of layers) for (let i = 0; i < L.def.n; i++) { const p = L.def.make(W, H, r); if (L.k === 'snow' || L.k === 'leaves') p.y = r() * H; if (L.k === 'sand') p.x = r() * W; L.ps.push(p); }
-    let t = 0;
-    const step = () => {
-      t++;
+    let t = 0, last = 0;
+    const step = (now) => {
+      anim = requestAnimationFrame(step);
+      if (now - last < 30) return; /* ~30 Bilder/s reichen für Atmosphäre */
+      last = now;
+      t += 2;
       ctx.clearRect(0, 0, W, H);
       for (const L of layers) {
         ctx.globalCompositeOperation = L.def.glow ? 'lighter' : 'source-over';
         for (const p of L.ps) {
-          if (p.wander) { p.vx = Math.cos(t * 0.01 + p.ph) * 0.35; p.vy = (p.vy * 0.98) + Math.sin(t * 0.013 + p.ph * 2) * 0.01; }
-          if (p.sway) p.x += Math.sin(t * 0.02 + p.sway) * 0.3;
-          if (p.grav) p.vy += p.grav;
-          p.x += p.vx; p.y += p.vy;
-          if (p.decay) p.life -= p.decay;
+          if (p.wander) { p.vx = Math.cos(t * 0.01 + p.ph) * 0.7; p.vy = (p.vy * 0.98) + Math.sin(t * 0.013 + p.ph * 2) * 0.02; }
+          if (p.sway) p.x += Math.sin(t * 0.02 + p.sway) * 0.6;
+          if (p.grav) p.vy += p.grav * 2;
+          p.x += p.vx * 2; p.y += p.vy * 2;
+          if (p.decay) p.life -= p.decay * 2;
           const out = p.y < -60 || p.y > H + 60 || p.x < -260 || p.x > W + 260 || (p.life != null && p.life <= 0);
           if (out) Object.assign(p, L.def.make(W, H, r));
           const alpha = p.life != null ? Math.max(0, Math.min(1, p.life)) : 1;
-          if (p.fog) {
-            const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.s);
-            g.addColorStop(0, hexA(p.c, 0.13)); g.addColorStop(1, hexA(p.c, 0));
-            ctx.fillStyle = g; ctx.fillRect(p.x - p.s, p.y - p.s, p.s * 2, p.s * 2);
-          } else if (p.ring) {
-            ctx.strokeStyle = hexA(p.c, 0.5); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(p.x, p.y, p.s, 0, 7); ctx.stroke();
-          } else if (p.leaf) {
-            ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(t * 0.02 + p.sway); ctx.fillStyle = hexA(p.c, 0.85);
-            ctx.beginPath(); ctx.ellipse(0, 0, p.s, p.s * 0.45, 0, 0, 7); ctx.fill(); ctx.restore();
-          } else {
-            const flick = L.def.glow ? 0.55 + 0.45 * Math.sin(t * 0.08 + (p.ph || p.x)) : 0.8;
-            if (L.def.glow) {
-              const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.s * 4);
-              g.addColorStop(0, hexA(p.c, 0.8 * alpha * flick)); g.addColorStop(1, hexA(p.c, 0));
-              ctx.fillStyle = g; ctx.fillRect(p.x - p.s * 4, p.y - p.s * 4, p.s * 8, p.s * 8);
-            } else {
-              ctx.fillStyle = hexA(p.c, 0.75 * alpha);
-              ctx.beginPath(); ctx.arc(p.x, p.y, p.s, 0, 7); ctx.fill();
-            }
-          }
+          if (p.fog) { ctx.drawImage(sprite(p.c, 'fog'), p.x - p.s, p.y - p.s, p.s * 2, p.s * 2); continue; }
+          if (p.ring) { ctx.strokeStyle = hexA(p.c, 0.5); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(p.x, p.y, p.s, 0, 7); ctx.stroke(); continue; }
+          if (p.leaf) { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(t * 0.02 + p.sway); ctx.fillStyle = hexA(p.c, 0.85); ctx.beginPath(); ctx.ellipse(0, 0, p.s, p.s * 0.45, 0, 0, 7); ctx.fill(); ctx.restore(); continue; }
+          const flick = L.def.glow ? 0.55 + 0.45 * Math.sin(t * 0.08 + (p.ph || p.x)) : 0.85;
+          ctx.globalAlpha = alpha * flick;
+          const R = L.def.glow ? p.s * 4 : p.s * 1.4;
+          ctx.drawImage(sprite(p.c, L.def.glow ? 'glow' : 'dot'), p.x - R, p.y - R, R * 2, R * 2);
+          ctx.globalAlpha = 1;
         }
       }
-      anim = requestAnimationFrame(step);
     };
     anim = requestAnimationFrame(step);
   };

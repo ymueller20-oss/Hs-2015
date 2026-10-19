@@ -1,7 +1,7 @@
 /* Basis-Set */
 (function () {
   'use strict';
-  const root = typeof window !== 'undefined' ? window : global;
+  const root = typeof window !== 'undefined' ? window : typeof self !== 'undefined' ? self : global;
   const HS = root.HS;
   const { M, S, W, T } = HS.lib;
   HS.setSet('basic');

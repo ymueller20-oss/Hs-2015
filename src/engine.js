@@ -1,7 +1,7 @@
 /* Regel-Engine: Zustand ist reines Daten-Objekt (klonbar), Kartenlogik liegt in HS.CARDS. */
 (function () {
   'use strict';
-  const root = typeof window !== 'undefined' ? window : global;
+  const root = typeof window !== 'undefined' ? window : typeof self !== 'undefined' ? self : global;
   const HS = (root.HS = root.HS || {});
 
   HS.CARDS = {};
@@ -56,7 +56,10 @@
       this._bq = null;
       this._fd = 0;
       this.sim = false;
+      this.fx = [];
     }
+    /* Sichtbare Ereignisse für die Oberfläche (nicht Teil des Spielzustands) */
+    vfx(e) { if (!this.sim) this.fx.push(e); }
 
     /* ---------------- Erzeugung ---------------- */
     static create(opts) {
@@ -407,6 +410,7 @@
       p.secrets = p.secrets.filter((id) => id !== e.id);
       e.zone = 'grave';
       this.log(`Geheimnis aufgedeckt: ${this.def(e).name}`);
+      this.vfx({ type: 'secret', card: e.card, owner: e.owner });
       this.fire('secretRevealed', { secret: e, player: e.owner });
     }
     addEffect(pi, card, opts) {
@@ -422,10 +426,11 @@
     damage(src, t, n) {
       if (!t || n <= 0 || this.s.phase === 'over') return 0;
       if (!this.inPlay(t) || t.zone === 'weapon') return 0;
-      if (this.has(t, 'immune') || this._atkImmune === t) return 0;
+      if (this.has(t, 'immune') || this._atkImmune === t) { this.vfx({ type: 'immune', id: t.id }); return 0; }
       if (this.isMinion(t)) {
         if (t.kw.divineShield) {
           t.kw.divineShield = false;
+          this.vfx({ type: 'shield', id: t.id });
           return 0;
         }
         if (this.s.effects.some((x) => x.card === 'e_commanding_shout' && x.owner === t.owner)) {
@@ -941,6 +946,7 @@
         if (alt.length) {
           d = this.pick(alt);
           this.log(`${this.nm(a)} greift das falsche Ziel an!`);
+          this.vfx({ type: 'misattack', id: a.id, target: d.id });
         }
       }
       this.loseStealth(a);

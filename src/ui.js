@@ -264,7 +264,7 @@
     },
     canAct() {
       const g = this.g;
-      if (!g || g.s.phase !== 'play' || this.busy) return false;
+      if (!g || g.s.phase !== 'play' || this.busy || this.animating) return false;
       if (this.mode === 'hotseat') return this.shownSeat === this.actor();
       return this.actor() === this.seat;
     },
@@ -292,6 +292,7 @@
     },
     after() {
       this.render();
+      this.playFx();
       this.checkOverlays();
       this.scheduleAI();
     },
@@ -300,17 +301,32 @@
       if (this.mode !== 'ai' || !g || g.s.phase !== 'play' || this.aiTimer) return;
       if (this.actor() !== 1) return;
       this.aiTimer = setTimeout(() => {
-        this.aiTimer = null;
-        if (!this.g || this.g !== g) return;
-        const a = HS.AI.choose(g, 1);
-        this.flashIds = a.type === 'play' && a.target ? [a.target] : a.type === 'power' && a.target ? [a.target] : [];
-        if (a.type === 'play') this.showcase(g.ent(a.id).card, g.P(1).name);
-        const go = () => { if (this.g !== g) return; this.snapshot(); HS.applyAction(g, 1, a); this.after(); };
-        if (a.type === 'attack') this.animateAttack(a.a, a.d).then(go);
-        else setTimeout(go, a.type === 'play' ? 450 : 0);
-      }, 650);
+        this.aiThink(g).then((a) => {
+          this.aiTimer = null;
+          if (!this.g || this.g !== g || g.s.phase !== 'play' || this.actor() !== 1) return;
+          this.flashIds = a.type === 'play' && a.target ? [a.target] : a.type === 'power' && a.target ? [a.target] : [];
+          if (a.type === 'play' && g.ent(a.id)) this.showcase(g.ent(a.id).card, g.P(1).name);
+          const go = () => { if (this.g !== g) return; this.snapshot(); HS.applyAction(g, 1, a); this.after(); };
+          if (a.type === 'attack') this.animateAttack(a.a, a.d).then(go);
+          else setTimeout(go, a.type === 'play' ? 450 : 0);
+        });
+      }, 550);
     },
 
+    /* KI-Zug im Worker berechnen; ohne Worker (z. B. file://) direkt */
+    aiThink(g) {
+      if (this.worker === undefined) {
+        try { this.worker = new Worker('src/aiworker.js'); this.worker.onerror = () => { this.worker = null; }; } catch (e) { this.worker = null; }
+      }
+      if (!this.worker) return new Promise((res) => setTimeout(() => res(HS.AI.choose(g, 1)), 0));
+      const id = (this.aiReq = (this.aiReq || 0) + 1);
+      return new Promise((res) => {
+        const to = setTimeout(() => { this.worker.onmessage = null; res(HS.AI.choose(g, 1)); }, 8000);
+        this.worker.onmessage = (m) => { if (m.data.id !== id) return; clearTimeout(to); res(m.data.a); };
+        this.worker.onerror = () => { clearTimeout(to); this.worker = null; res(HS.AI.choose(g, 1)); };
+        this.worker.postMessage({ id, s: g.s, pi: 1 });
+      });
+    },
     checkOverlays() {
       const g = this.g;
       if (!g) return;
@@ -494,10 +510,11 @@
       const on = g.hand(op).length;
       const oppHand = g.hand(op).map((c, i) => `<div class="card back" style="--rot:${((i - (on - 1) / 2) * -4).toFixed(1)}deg"></div>`).join('');
       const myTurn = g.cur === me;
-      const anyMove = act && myTurn && HS.legalActions(g, me).length > 0;
+      const anyMove = act && myTurn && (g.hand(me).some((c) => g.canPlay(me, c)) || g.canPower(me) || g.chars(me).some((c) => g.canAttack(c)));
       const status = g.s.phase === 'over' ? 'Spiel beendet' : this.busy ? 'Sende …' : myTurn ? (this.mode === 'hotseat' ? `${esc(g.P(me).name)} ist am Zug` : 'Dein Zug') : `${esc(g.P(g.cur).name)} ist am Zug`;
       const hint = sel ? (sel.kind === 'pos' ? 'Platz für den Diener wählen' : sel.kind === 'attack' ? 'Angriffsziel wählen' : 'Ziel wählen') + ' · Rechtsklick/Esc bricht ab' : act && myTurn ? 'Karten aufs Brett ziehen · Diener auf Ziele ziehen' : '';
       const logOpen = this.logOpen ? '' : 'hidden';
+      const oldMinions = this.captureMinions();
       const ar = HS.arena(this.arenaId);
       const aimg = HS.arenaImg(ar.id);
       const aStyle = `--a0:${ar.c[0]};--a1:${ar.c[1]};--a2:${ar.c[2]};--aline:${ar.line};--aglow:${ar.glow};${aimg ? `--aimg:url(${aimg});` : ''}`;
@@ -521,6 +538,7 @@
       </div></div>`;
       this.fit();
       this.mountAmbience(oldFx);
+      this.animateLeavers(oldMinions);
       const log = app.querySelector('.log');
       log.scrollTop = log.scrollHeight;
       this.knownIds = nowIds;
@@ -539,17 +557,78 @@
       st.classList.toggle('portrait', portrait);
       st.style.transform = `translate(${(innerWidth - W * sc) / 2}px, ${(innerHeight - H * sc) / 2}px) scale(${sc})`;
     },
+    captureMinions() {
+      const st = document.getElementById('stage');
+      const out = new Map();
+      if (!st || !this.scale) return out;
+      const sr = st.getBoundingClientRect();
+      for (const el of app.querySelectorAll('.board .minion')) {
+        const r = el.getBoundingClientRect();
+        out.set(+el.dataset.eid, { x: (r.left - sr.left) / this.scale, y: (r.top - sr.top) / this.scale, w: r.width / this.scale, h: r.height / this.scale, html: el.outerHTML });
+      }
+      return out;
+    },
+    /* Diener, die das Brett verlassen haben: zerbrechen (tot) oder zur Hand fliegen */
+    animateLeavers(old) {
+      const g = this.g;
+      const st = document.getElementById('stage');
+      if (!g || !st || !old.size) return;
+      const now = new Set([...app.querySelectorAll('.board .minion')].map((el) => +el.dataset.eid));
+      for (const [id, o] of old) {
+        if (now.has(id)) continue;
+        const e = g.ent(id);
+        if (!e) continue;
+        const ghost = document.createElement('div');
+        ghost.className = 'leaver ' + (e.zone === 'hand' ? 'to-hand' : e.zone === 'grave' ? 'dies' : 'fades');
+        ghost.style.cssText = `left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.h}px;--hand-dy:${e.owner === this.view() ? 260 : -260}px`;
+        ghost.innerHTML = o.html.replace(/data-eid="\d+"/, '').replace(/class="minion[^"]*"/, 'class="minion"');
+        if (e.zone === 'grave') ghost.insertAdjacentHTML('beforeend', '<span class="shard s1"></span><span class="shard s2"></span><span class="shard s3"></span><span class="shard s4"></span>');
+        st.append(ghost);
+        setTimeout(() => ghost.remove(), 900);
+      }
+    },
+    /* Ereignisse aus der Engine sichtbar machen */
+    playFx() {
+      const g = this.g;
+      if (!g || !g.fx.length) return;
+      const list = g.fx.splice(0);
+      for (const f of list) {
+        if (f.type === 'secret') this.showcase(f.card, g.P(f.owner).name, 'Geheimnis aufgedeckt!');
+        else if (f.type === 'shield') this.popAt(f.id, 'shieldpop', 'Gottesschild!');
+        else if (f.type === 'misattack') this.popAt(f.id, 'misattack', 'Falsches Ziel!');
+        else if (f.type === 'immune') this.popAt(f.id, 'immunepop', 'Immun');
+      }
+    },
+    popAt(id, cls, text) {
+      const st = document.getElementById('stage');
+      const el = app.querySelector(`.table [data-eid="${id}"]`);
+      const o = this.captureOne(el);
+      if (!st || !o) return;
+      const p = document.createElement('div');
+      p.className = 'pop ' + cls;
+      p.textContent = text;
+      p.style.cssText = `left:${o.x + o.w / 2}px;top:${o.y + o.h / 2}px`;
+      st.append(p);
+      setTimeout(() => p.remove(), 1300);
+    },
+    captureOne(el) {
+      const st = document.getElementById('stage');
+      if (!el || !st) return null;
+      const sr = st.getBoundingClientRect(), r = el.getBoundingClientRect();
+      return { x: (r.left - sr.left) / this.scale, y: (r.top - sr.top) / this.scale, w: r.width / this.scale, h: r.height / this.scale };
+    },
     /* Atmosphäre-Leinwand bleibt über Neuaufbauten hinweg erhalten */
     mountAmbience(old) {
       const table = app.querySelector('.table');
       if (!table) return;
       const st = document.getElementById('stage');
       const W = st.classList.contains('portrait') ? 720 : 1280, H = st.classList.contains('portrait') ? 1280 : 720;
-      if (old && old.width === W && old.height === H && old.dataset.arena === this.arenaId) { table.prepend(old); return; }
+      if (old && old.dataset.w == W && old.dataset.h == H && old.dataset.arena === this.arenaId) { table.prepend(old); return; }
       const cv = document.createElement('canvas');
       cv.className = 'ambience';
       cv.width = W; cv.height = H;
       cv.dataset.arena = this.arenaId;
+      cv.dataset.w = W; cv.dataset.h = H;
       table.prepend(cv);
       this.ambience = cv;
       HS.startAmbience(cv, this.arenaId);
@@ -562,13 +641,13 @@
       void b.offsetWidth;
       b.classList.add('show');
     },
-    showcase(cardId, who) {
+    showcase(cardId, who, label) {
       this.lastPlayed = { card: cardId, who };
       const el = document.createElement('div');
-      el.className = 'showcase';
-      el.innerHTML = cardHTML(null, null, cardId);
+      el.className = 'showcase' + (label ? ' secretshow' : '');
+      el.innerHTML = (label ? `<div class="sc-label">${esc(label)}</div>` : '') + cardHTML(null, null, cardId);
       document.body.append(el);
-      setTimeout(() => el.remove(), 1700);
+      setTimeout(() => el.remove(), label ? 2300 : 1700);
     },
     bind() {
       app.querySelector('#endturn').onclick = () => { if (this.canAct() && this.g.cur === this.view()) this.act({ type: 'end' }); };
@@ -829,7 +908,9 @@
       addEventListener('pointermove', mv);
     },
     doAttack(a, d) {
-      this.animateAttack(a, d).then(() => this.act({ type: 'attack', a, d }));
+      this.animating = true;
+      this.markTargets(null);
+      this.animateAttack(a, d).then(() => { this.animating = false; this.act({ type: 'attack', a, d }); });
     },
     animateAttack(aId, dId) {
       const a = app.querySelector(`[data-eid="${aId}"]`), d = app.querySelector(`[data-eid="${dId}"]`);

@@ -1,7 +1,7 @@
 /* Aktionen (auch fürs Netzwerk) und Computergegner */
 (function () {
   'use strict';
-  const root = typeof window !== 'undefined' ? window : global;
+  const root = typeof window !== 'undefined' ? window : typeof self !== 'undefined' ? self : global;
   const HS = root.HS;
 
   /* Eine Aktion ist reines JSON: so kann sie über das Netz geschickt und deterministisch nachgespielt werden. */

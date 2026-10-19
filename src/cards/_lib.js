@@ -1,7 +1,7 @@
 /* Konstruktoren, Helden, Heldenfähigkeiten und gemeinsame Effekte */
 (function () {
   'use strict';
-  const root = typeof window !== 'undefined' ? window : global;
+  const root = typeof window !== 'undefined' ? window : typeof self !== 'undefined' ? self : global;
   const HS = root.HS;
 
   const M = (id, name, cost, atk, hp, o) => HS.def(Object.assign({ id, name, type: 'minion', cost, atk, hp }, o || {}));

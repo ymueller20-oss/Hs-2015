@@ -1,7 +1,7 @@
 /* Klassik-Set: neutrale Karten */
 (function () {
   'use strict';
-  const root = typeof window !== 'undefined' ? window : global;
+  const root = typeof window !== 'undefined' ? window : typeof self !== 'undefined' ? self : global;
   const HS = root.HS;
   const { M, T, TS } = HS.lib;
   HS.setSet('classic');

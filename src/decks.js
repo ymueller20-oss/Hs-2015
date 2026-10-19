@@ -1,7 +1,7 @@
 /* Deckregeln, Startdecks und Zufallsdecks */
 (function () {
   'use strict';
-  const root = typeof window !== 'undefined' ? window : global;
+  const root = typeof window !== 'undefined' ? window : typeof self !== 'undefined' ? self : global;
   const HS = root.HS;
 
   HS.DECK_SIZE = 30;
