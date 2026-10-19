@@ -21,10 +21,10 @@
   background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--cc) 40%, #1a1410), #070504);
   border: calc(var(--mw) * .014) solid; border-color: #000000b0 #ffffff50 #ffffff50 #000000b0; box-shadow: 0 0 0 1px #000;
 }
-.stage .minion.minion .m-art img { filter: contrast(1.16) saturate(.7) sepia(.22) brightness(.93); }
+.stage .minion.minion .m-art img { filter: contrast(1.08) saturate(1.08) sepia(.06); }
 .stage .minion.minion .m-art::after {
   content: ''; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 calc(var(--mw) * .06) #000c;
-  background: url(../tex/grain.png) 0 0 / calc(var(--mw) * .45), radial-gradient(ellipse at 50% 45%, transparent 50%, #1a0e0488);
+  background: url(../tex/grain.png) 0 0 / calc(var(--mw) * .45), radial-gradient(ellipse at 50% 45%, transparent 60%, #1a0e0455);
 }
 .stage .minion.minion.stealth .m-art img { filter: brightness(.4) saturate(.3) blur(1px); }
 .stage .minion.minion.frozen .m-art img { filter: hue-rotate(170deg) saturate(.4) brightness(1.35); }
