@@ -851,7 +851,7 @@
     down(ev) {
       if (ev.button === 2) return;
       const g = this.g;
-      const t = ev.target.closest('[data-eid],[data-power],.slot');
+      let t = ev.target.closest('[data-eid],[data-power],.slot');
       if (this.pending) {
         /* Diener wartet in seiner Lücke auf das Kampfschrei-Ziel: Tipp auf ein Ziel spielt ihn aus, alles andere bricht ab */
         const hit = t && this.sel && this.sel.targets && this.sel.targets.find((x) => x.id === +t.dataset.eid);
@@ -869,8 +869,14 @@
       }
       if (this.sel && this.sel.kind === 'pos') return this.cancel();
       let kind = null;
-      const e = t.dataset.power != null ? g.power(+t.dataset.power) : g.ent(+t.dataset.eid);
+      let e = t.dataset.power != null ? g.power(+t.dataset.power) : g.ent(+t.dataset.eid);
       if (!e) return;
+      /* eigene Waffe ziehen = mit dem Helden angreifen */
+      if (g.def(e).type === 'weapon' && e.owner === me && e.zone !== 'hand') {
+        const h = g.hero(me);
+        const hel = app.querySelector(`[data-eid="${h.id}"]`);
+        if (hel && g.canAttack(h)) { e = h; t = hel; }
+      }
       if (t.dataset.power != null) { if (+t.dataset.power === me && g.canPower(me)) kind = 'power'; }
       else if (e.zone === 'hand' && e.owner === me) {
         if (!g.canPlay(me, e)) { if (ev.pointerType !== 'mouse') return touchPv(); toast(g.cost(e) > g.P(me).mana ? 'Nicht genug Mana.' : 'Diese Karte kann gerade nicht gespielt werden.'); return; }

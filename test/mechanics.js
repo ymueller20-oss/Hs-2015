@@ -109,5 +109,7 @@ t('Drachengemahlin', () => { const g = setup('paladin'); play(g, 0, hand(g, 0, '
 t('Dunkeleisenschleicher', () => { const g = setup('rogue'); const a = mk(g, 1, 'chillwind_yeti'); const b = mk(g, 1, 'chillwind_yeti'); b.damage = 1; play(g, 0, hand(g, 0, 'dark_iron_skulker')); eq(g.hp(a), 3); eq(g.hp(b), 4); });
 t('Wiederbelebung', () => { const g = setup('priest'); const y = mk(g, 0, 'chillwind_yeti'); g.destroy(y); g.processDeaths(); play(g, 0, hand(g, 0, 'resurrect')); eq(g.board(0)[0].card, 'chillwind_yeti'); });
 t('Majordomus Ragnaros-Fähigkeit', () => { const g = setup(); const m = mk(g, 0, 'majordomo_executus'); g.destroy(m); g.processDeaths(); g.endTurn(); g.endTurn(); const b = g.hp(g.hero(1)); g.P(0).mana = 10; g.usePower(0); eq(b - g.hp(g.hero(1)), 8); });
+t('Steady Shot ohne Ziel nutzbar', () => { const g = setup('hunter'); eq(g.canPower(0), true); eq(g.powerTargets(0), null); eq(g.usePower(0), true); eq(g.hero(1).damage, 2); });
+t('Steady Shot mit Steamwheedle Sniper braucht Ziel', () => { const g = setup('hunter'); mk(g, 0, 'steamwheedle_sniper'); const y = mk(g, 1, 'chillwind_yeti'); eq(g.canPower(0), true); eq(g.usePower(0), false); eq(g.usePower(0, y.id), true); eq(y.damage, 2); });
 console.log(`${pass} bestanden, ${fail} fehlgeschlagen`);
 process.exit(fail ? 1 : 0);

@@ -843,10 +843,9 @@
       const c = this.def(pw);
       if (p.powerUses >= 1 || c.cost > p.mana) return false;
       if (c.canUse && !c.canUse(this, pw)) return false;
-      if (c.target) {
-        const t = this.targets(pw, c.target);
-        if (!t || !t.length) return false;
-      }
+      /* null = Fähigkeit braucht gerade kein Ziel (z. B. Steady Shot ohne Steamwheedle Sniper) */
+      const t = c.target ? this.targets(pw, c.target) : null;
+      if (t && !t.length) return false;
       return true;
     }
     powerTargets(pi) {
@@ -985,9 +984,10 @@
       const pw = this.power(pi);
       const c = this.def(pw);
       let t = null;
-      if (c.target) {
+      const list = c.target ? this.targets(pw, c.target) : null;
+      if (list) {
         t = this.ent(tid);
-        if (!t || !this.targets(pw, c.target).includes(t)) return false;
+        if (!t || !list.includes(t)) return false;
       }
       const p = this.P(pi);
       p.mana -= c.cost;
