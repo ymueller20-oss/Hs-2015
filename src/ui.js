@@ -77,17 +77,17 @@
   function notesFor(g, e) {
     const extra = [];
     if (!g || !g.isMinion(e)) return extra;
-    if (e.frozen) extra.push('Eingefroren');
-    if (e.silenced) extra.push('Zum Schweigen gebracht');
-    if (g.has(e, 'immune')) extra.push('Immun');
+    if (e.frozen) extra.push('Frozen');
+    if (e.silenced) extra.push('Silenced');
+    if (g.has(e, 'immune')) extra.push('Immune');
     for (const x of e.ench) {
       const bits = [];
       if (x.atk) bits.push((x.atk > 0 ? '+' : '') + x.atk + ' Angriff');
       if (x.hp) bits.push('+' + x.hp + ' Leben');
       if (x.setAtk != null) bits.push('Angriff = ' + x.setAtk);
       if (x.setHp != null) bits.push('Leben = ' + x.setHp);
-      if (x.kw && x.kw.length) bits.push(x.kw.map((k) => ({ taunt: 'Spott', stealth: 'Verstohlenheit', immune: 'Immun', divineShield: 'Gottesschild', windfury: 'Windzorn', charge: 'Ansturm' }[k] || k)).join(', '));
-      if (x.sd) bits.push('Zauberschaden +' + x.sd);
+      if (x.kw && x.kw.length) bits.push(x.kw.map((k) => ({ taunt: 'Taunt', stealth: 'Stealth', immune: 'Immune', divineShield: 'Divine Shield', windfury: 'Windfury', charge: 'Charge' }[k] || k)).join(', '));
+      if (x.sd) bits.push('Spell Damage +' + x.sd);
       if (x.card && HS.CARDS[x.card] && HS.CARDS[x.card].text) bits.push(HS.CARDS[x.card].text.replace(/<[^>]+>/g, ''));
       if (x.expire) bits.push('(diesen Zug)');
       if (bits.length) extra.push(bits.join(' '));
@@ -96,23 +96,23 @@
   }
   /* Erklärungen der Schlüsselwörter für die Großansicht */
   const GLOSSARY = [
-    [/kampfschrei/, 'Kampfschrei', 'Wirkt, wenn die Karte aus der Hand ausgespielt wird.'],
-    [/todesröcheln/, 'Todesröcheln', 'Wirkt, wenn der Diener stirbt.'],
-    [/spott/, 'Spott', 'Gegner müssen zuerst Diener mit Spott angreifen.'],
-    [/ansturm/, 'Ansturm', 'Kann sofort im selben Zug angreifen.'],
-    [/gottesschild/, 'Gottesschild', 'Der erste erlittene Schaden wird ignoriert, dann zerbricht der Schild.'],
-    [/verstohlenheit/, 'Verstohlenheit', 'Kann nicht angegriffen oder als Ziel gewählt werden, bis der Diener selbst angreift.'],
-    [/mega-windzorn/, 'Mega-Windzorn', 'Kann viermal pro Zug angreifen.'],
-    [/(^|[^-])windzorn/, 'Windzorn', 'Kann zweimal pro Zug angreifen.'],
-    [/zauberschaden/, 'Zauberschaden', 'Eure Zauber verursachen entsprechend mehr Schaden.'],
-    [/überladung/, 'Überladung', 'Im nächsten Zug sind entsprechend viele Manakristalle gesperrt.'],
-    [/geheimnis/, 'Geheimnis', 'Wird verdeckt ausgespielt und löst im Zug des Gegners aus, sobald die Bedingung eintritt.'],
+    [/battlecry/, 'Battlecry', 'Wirkt, wenn die Karte aus der Hand ausgespielt wird.'],
+    [/deathrattle/, 'Deathrattle', 'Wirkt, wenn der Diener stirbt.'],
+    [/taunt/, 'Taunt', 'Gegner müssen zuerst Diener mit Taunt angreifen.'],
+    [/charge/, 'Charge', 'Kann sofort im selben Zug angreifen.'],
+    [/divine shield/, 'Divine Shield', 'Der erste erlittene Schaden wird ignoriert, dann zerbricht der Schild.'],
+    [/stealth/, 'Stealth', 'Kann nicht angegriffen oder als Ziel gewählt werden, bis der Diener selbst angreift.'],
+    [/mega-windfury/, 'Mega-Windfury', 'Kann viermal pro Zug angreifen.'],
+    [/(^|[^-])windfury/, 'Windfury', 'Kann zweimal pro Zug angreifen.'],
+    [/spell damage/, 'Spell Damage', 'Eure Zauber verursachen entsprechend mehr Schaden.'],
+    [/overload/, 'Overload', 'Im nächsten Zug sind entsprechend viele Manakristalle gesperrt.'],
+    [/secret/, 'Secret', 'Wird verdeckt ausgespielt und löst im Zug des Gegners aus, sobald die Bedingung eintritt.'],
     [/combo/, 'Combo', 'Zusatzeffekt, wenn Ihr in diesem Zug bereits eine andere Karte ausgespielt habt.'],
-    [/wutanfall/, 'Wutanfall', 'Wirkt, solange der Diener beschädigt ist.'],
-    [/wählt aus/, 'Wählt aus', 'Beim Ausspielen wählt Ihr einen von zwei Effekten.'],
-    [/friert|eingefroren/, 'Einfrieren', 'Eingefrorene Charaktere verpassen ihren nächsten Angriff.'],
-    [/schweigen/, 'Schweigen', 'Entfernt den Kartentext und alle Verzauberungen eines Dieners.'],
-    [/immun/, 'Immun', 'Erleidet keinen Schaden.'],
+    [/enrage/, 'Enrage', 'Wirkt, solange der Diener beschädigt ist.'],
+    [/choose one/, 'Choose One', 'Beim Ausspielen wählt Ihr einen von zwei Effekten.'],
+    [/freeze|frozen/, 'Freeze', 'Eingefrorene Charaktere verpassen ihren nächsten Angriff.'],
+    [/silence/, 'Silence', 'Entfernt den Kartentext und alle Verzauberungen eines Dieners.'],
+    [/immune/, 'Immune', 'Erleidet keinen Schaden.'],
   ];
   function glossaryFor(text) {
     const bold = (String(text).match(/<b>[^<]*<\/b>/g) || []).join(' ').toLowerCase();
@@ -129,7 +129,7 @@
       stats = `<div class="c-atk ${a > d.atk ? 'up' : a < d.atk ? 'dn' : ''}"><b>${a}</b><i>${d.type === 'weapon' ? '⚔' : '†'}</i></div><div class="c-hp ${h > d.hp ? 'up' : h < d.hp ? 'dn' : ''}"><b>${h}</b><i>${d.type === 'weapon' ? '◆' : '♥'}</i></div>`;
     }
     const text = e && g ? g.text(e) : HS.textOf(d);
-    const type = (TYPE[d.type] || '') + (d.race ? ' — ' + HS.RACES[d.race] : d.secret ? ' — Geheimnis' : '');
+    const type = (TYPE[d.type] || '') + (d.race ? ' — ' + HS.RACES[d.race] : d.secret ? ' — Secret' : '');
     const nm = d.name.length > 22 ? 'xlong' : d.name.length > 15 ? 'long' : '';
     return `<div class="card cls-${d.cls} ${themeOf(d) ? 'th-' + themeOf(d) : ''} rar-${d.rarity} type-${d.type} ${extra || ''}" ${e ? `data-eid="${e.id}"` : `data-cid="${d.id}"`}>
       <div class="c-cost ${costCls}"><b>${cost}</b><i>♦</i></div>
@@ -437,7 +437,7 @@
       const p = g.P(seat);
       const sel = new Set();
       const draw = () => {
-        const d = showModal(`<h2>Starthand – ${esc(p.name)}</h2><p>${seat === g.s.first ? 'Du beginnst.' : 'Du bist Zweiter und erhältst „Die Münze“.'} Klicke Karten an, die du austauschen möchtest.</p>
+        const d = showModal(`<h2>Starthand – ${esc(p.name)}</h2><p>${seat === g.s.first ? 'Du beginnst.' : 'Du bist Zweiter und erhältst „The Coin“.'} Klicke Karten an, die du austauschen möchtest.</p>
           <div class="cards">${p.mull.map((id) => cardHTML(g, g.ent(id), null, sel.has(id) ? 'replace' : '')).join('')}</div>
           <button class="primary" id="ok">Bestätigen</button>`);
         d.querySelectorAll('.card').forEach((c) => (c.onclick = () => { const id = +c.dataset.eid; sel.has(id) ? sel.delete(id) : sel.add(id); draw(); }));
@@ -508,13 +508,13 @@
         const d = g.def(m);
         nowIds.add(m.id);
         const ic = [];
-        if ((!m.silenced && d.deathrattle) || m.ench.some((x) => x.card && HS.CARDS[x.card] && HS.CARDS[x.card].deathrattle)) ic.push('<i title="Todesröcheln">☠</i>');
+        if ((!m.silenced && d.deathrattle) || m.ench.some((x) => x.card && HS.CARDS[x.card] && HS.CARDS[x.card].deathrattle)) ic.push('<i title="Deathrattle">☠</i>');
         if (!m.silenced && (d.triggers || d.aura || d.costAura || d.auraKw)) ic.push('<i title="Effekt">ϟ</i>');
-        if (g.has(m, 'windfury') || g.has(m, 'megaWindfury')) ic.push('<i title="Windzorn">≋</i>');
+        if (g.has(m, 'windfury') || g.has(m, 'megaWindfury')) ic.push('<i title="Windfury">≋</i>');
         if (g.has(m, 'poison')) ic.push('<i title="Giftig">☣</i>');
-        if (g.has(m, 'immune')) ic.push('<i title="Immun">✪</i>');
+        if (g.has(m, 'immune')) ic.push('<i title="Immune">✪</i>');
         if (g.has(m, 'elusive')) ic.push('<i title="Nicht als Ziel wählbar">◌</i>');
-        if ((!m.silenced && d.spellDamage) || m.ench.some((x) => x.sd)) ic.push('<i title="Zauberschaden">✷</i>');
+        if ((!m.silenced && d.spellDamage) || m.ench.some((x) => x.sd)) ic.push('<i title="Spell Damage">✷</i>');
         const a = g.atk(m), h = g.hp(m), mx = g.maxHp(m);
         const k = ['minion', 'cls-' + d.cls, mark(m)];
         if (themeOf(d)) k.push('th-' + themeOf(d));
@@ -677,10 +677,10 @@
       const hits = list.filter((f) => f.type === 'hit');
       hits.forEach((h, i) => setTimeout(() => this.bolt(h, hits.length > 6), i * (hits.length > 6 ? 40 : 170)));
       for (const f of list) {
-        if (f.type === 'secret') this.showcase(f.card, g.P(f.owner).name, 'Geheimnis aufgedeckt!');
-        else if (f.type === 'shield') this.popAt(f.id, 'shieldpop', 'Gottesschild!');
+        if (f.type === 'secret') this.showcase(f.card, g.P(f.owner).name, 'Secret aufgedeckt!');
+        else if (f.type === 'shield') this.popAt(f.id, 'shieldpop', 'Divine Shield!');
         else if (f.type === 'misattack') this.popAt(f.id, 'misattack', 'Falsches Ziel!');
-        else if (f.type === 'immune') this.popAt(f.id, 'immunepop', 'Immun');
+        else if (f.type === 'immune') this.popAt(f.id, 'immunepop', 'Immune');
       }
     },
     /* Position eines Elements (lebend oder gerade gestorben) in Bühnenkoordinaten */
@@ -1044,7 +1044,7 @@
       const d = g.def(e);
       const me = this.view();
       if (d.choose) {
-        const dlg = showModal(`<h2>${esc(d.name)} – Wählt aus:</h2><div class="cards">${d.choose.map((o, i) => {
+        const dlg = showModal(`<h2>${esc(d.name)} – Choose One:</h2><div class="cards">${d.choose.map((o, i) => {
           const ok = g.canPlay(me, e, i);
           return `<div class="card cls-${d.cls} th-${themeOf(d)} type-spell choice" data-i="${i}" style="${ok ? '' : 'opacity:.35;pointer-events:none'}"><div class="c-name">${esc(o.name)}</div><div class="c-art">${artTag(d.id, d.cls)}</div><div class="c-type">Wählt aus</div><div class="c-text ${textSize(o.text, true)}"><div>${fmtText(o.text.replace(/\$(\d+)/g, (_, n) => { const v = g.spellDmg(e, +n); return v !== +n ? `*${v}*` : n; }))}</div></div></div>`;
         }).join('')}</div><button id="x">Abbrechen</button>`);

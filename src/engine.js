@@ -36,7 +36,7 @@
     warrior: { name: 'Krieger', color: '#a82a2a', hero: 'hero_warrior', power: 'hp_armor_up' },
   };
   HS.SETS = { basic: 'Basis', classic: 'Klassik', naxx: 'Naxxramas', gvg: 'Goblins gegen Gnome', brm: 'Schwarzfels', token: 'Token' };
-  HS.RACES = { beast: 'Wildtier', murloc: 'Murloc', demon: 'Dämon', dragon: 'Drache', mech: 'Mech', pirate: 'Pirat', totem: 'Totem' };
+  HS.RACES = { beast: 'Beast', murloc: 'Murloc', demon: 'Demon', dragon: 'Dragon', mech: 'Mech', pirate: 'Pirate', totem: 'Totem' };
 
   let _pool = null;
   HS.collectible = function () {
@@ -409,7 +409,7 @@
       const p = this.P(e.owner);
       p.secrets = p.secrets.filter((id) => id !== e.id);
       e.zone = 'grave';
-      this.log(`Geheimnis aufgedeckt: ${this.def(e).name}`);
+      this.log(`Secret aufgedeckt: ${this.def(e).name}`);
       this.vfx({ type: 'secret', card: e.card, owner: e.owner });
       this.fire('secretRevealed', { secret: e, player: e.owner });
     }
@@ -514,7 +514,7 @@
       const after = this.maxHp(t);
       if (after < before) t.damage = Math.max(0, t.damage - (before - after));
       t.lastMax = after;
-      this.log(`${this.nm(t)} wurde zum Schweigen gebracht.`);
+      this.log(`${this.nm(t)} erhält Silence.`);
     }
     buff(t, o) {
       if (!t) return null;
