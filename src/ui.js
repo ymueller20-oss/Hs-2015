@@ -73,6 +73,51 @@
     return '';
   }
   HS.themeOf = themeOf;
+  /* Zustände und Verzauberungen eines Dieners in Klartext */
+  function notesFor(g, e) {
+    const extra = [];
+    if (!g || !g.isMinion(e)) return extra;
+    if (e.frozen) extra.push('Eingefroren');
+    if (e.silenced) extra.push('Zum Schweigen gebracht');
+    if (g.has(e, 'immune')) extra.push('Immun');
+    for (const x of e.ench) {
+      const bits = [];
+      if (x.atk) bits.push((x.atk > 0 ? '+' : '') + x.atk + ' Angriff');
+      if (x.hp) bits.push('+' + x.hp + ' Leben');
+      if (x.setAtk != null) bits.push('Angriff = ' + x.setAtk);
+      if (x.setHp != null) bits.push('Leben = ' + x.setHp);
+      if (x.kw && x.kw.length) bits.push(x.kw.map((k) => ({ taunt: 'Spott', stealth: 'Verstohlenheit', immune: 'Immun', divineShield: 'Gottesschild', windfury: 'Windzorn', charge: 'Ansturm' }[k] || k)).join(', '));
+      if (x.sd) bits.push('Zauberschaden +' + x.sd);
+      if (x.card && HS.CARDS[x.card] && HS.CARDS[x.card].text) bits.push(HS.CARDS[x.card].text.replace(/<[^>]+>/g, ''));
+      if (x.expire) bits.push('(diesen Zug)');
+      if (bits.length) extra.push(bits.join(' '));
+    }
+    return extra;
+  }
+  /* Erklärungen der Schlüsselwörter für die Großansicht */
+  const GLOSSARY = [
+    [/kampfschrei/, 'Kampfschrei', 'Wirkt, wenn die Karte aus der Hand ausgespielt wird.'],
+    [/todesröcheln/, 'Todesröcheln', 'Wirkt, wenn der Diener stirbt.'],
+    [/spott/, 'Spott', 'Gegner müssen zuerst Diener mit Spott angreifen.'],
+    [/ansturm/, 'Ansturm', 'Kann sofort im selben Zug angreifen.'],
+    [/gottesschild/, 'Gottesschild', 'Der erste erlittene Schaden wird ignoriert, dann zerbricht der Schild.'],
+    [/verstohlenheit/, 'Verstohlenheit', 'Kann nicht angegriffen oder als Ziel gewählt werden, bis der Diener selbst angreift.'],
+    [/mega-windzorn/, 'Mega-Windzorn', 'Kann viermal pro Zug angreifen.'],
+    [/(^|[^-])windzorn/, 'Windzorn', 'Kann zweimal pro Zug angreifen.'],
+    [/zauberschaden/, 'Zauberschaden', 'Eure Zauber verursachen entsprechend mehr Schaden.'],
+    [/überladung/, 'Überladung', 'Im nächsten Zug sind entsprechend viele Manakristalle gesperrt.'],
+    [/geheimnis/, 'Geheimnis', 'Wird verdeckt ausgespielt und löst im Zug des Gegners aus, sobald die Bedingung eintritt.'],
+    [/combo/, 'Combo', 'Zusatzeffekt, wenn Ihr in diesem Zug bereits eine andere Karte ausgespielt habt.'],
+    [/wutanfall/, 'Wutanfall', 'Wirkt, solange der Diener beschädigt ist.'],
+    [/wählt aus/, 'Wählt aus', 'Beim Ausspielen wählt Ihr einen von zwei Effekten.'],
+    [/friert|eingefroren/, 'Einfrieren', 'Eingefrorene Charaktere verpassen ihren nächsten Angriff.'],
+    [/schweigen/, 'Schweigen', 'Entfernt den Kartentext und alle Verzauberungen eines Dieners.'],
+    [/immun/, 'Immun', 'Erleidet keinen Schaden.'],
+  ];
+  function glossaryFor(text) {
+    const bold = (String(text).match(/<b>[^<]*<\/b>/g) || []).join(' ').toLowerCase();
+    return GLOSSARY.filter(([re]) => re.test(bold)).map(([, k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+  }
   function cardHTML(g, e, cardId, extra) {
     const d = e ? g.def(e) : HS.card(cardId);
     const cost = e && g ? g.cost(e) : d.cost;
@@ -548,7 +593,7 @@
       const myTurn = g.cur === me;
       const anyMove = act && myTurn && (g.hand(me).some((c) => g.canPlay(me, c)) || g.canPower(me) || g.chars(me).some((c) => g.canAttack(c)));
       const status = g.s.phase === 'over' ? 'Spiel beendet' : this.busy ? 'Sende …' : myTurn ? (this.mode === 'hotseat' ? `${esc(g.P(me).name)} ist am Zug` : 'Dein Zug') : `${esc(g.P(g.cur).name)} ist am Zug`;
-      const hint = sel ? (sel.kind === 'pos' ? 'Platz für den Diener wählen' : sel.kind === 'attack' ? 'Angriffsziel wählen' : 'Ziel wählen') + ' · Rechtsklick/Esc bricht ab' : act && myTurn ? 'Karten aufs Brett ziehen · Diener auf Ziele ziehen' : '';
+      const hint = sel ? (sel.kind === 'pos' ? 'Platz für den Diener wählen' : sel.kind === 'attack' ? 'Angriffsziel wählen' : 'Ziel wählen') + ' · Rechtsklick/Esc bricht ab' : act && myTurn ? 'Karten aufs Brett ziehen · Diener auf Ziele ziehen · lange drücken/Rechtsklick: Karte groß' : '';
       const logOpen = this.logOpen ? '' : 'hidden';
       const oldMinions = this.captureMinions();
       this.lastPositions = oldMinions;
@@ -1042,24 +1087,7 @@
       else if (g.isHero(e)) html = `<div class="heroinfo cls-${g.P(e.owner).cls}"><b>${esc(g.P(e.owner).name)}</b><span>${HS.CLASSES[g.P(e.owner).cls].name}</span><span>Leben ${g.hp(e)}/${g.maxHp(e)}</span>${e.armor ? `<span>Rüstung ${e.armor}</span>` : ''}${g.atk(e) ? `<span>Angriff ${g.atk(e)}</span>` : ''}</div>`;
       else if (g.def(e).type === 'power') html = `<div class="heroinfo"><b>${esc(g.def(e).name)}</b><span>Heldenfähigkeit · Kosten ${g.def(e).cost}</span><p>${fmtText(g.text(e))}</p></div>`;
       else {
-        const extra = [];
-        if (g.isMinion(e)) {
-          if (e.frozen) extra.push('Eingefroren');
-          if (e.silenced) extra.push('Zum Schweigen gebracht');
-          if (g.has(e, 'immune')) extra.push('Immun');
-          for (const x of e.ench) {
-            const bits = [];
-            if (x.atk) bits.push((x.atk > 0 ? '+' : '') + x.atk + ' Angriff');
-            if (x.hp) bits.push('+' + x.hp + ' Leben');
-            if (x.setAtk != null) bits.push('Angriff = ' + x.setAtk);
-            if (x.setHp != null) bits.push('Leben = ' + x.setHp);
-            if (x.kw && x.kw.length) bits.push(x.kw.map((k) => ({ taunt: 'Spott', stealth: 'Verstohlenheit', immune: 'Immun', divineShield: 'Gottesschild', windfury: 'Windzorn', charge: 'Ansturm' }[k] || k)).join(', '));
-            if (x.sd) bits.push('Zauberschaden +' + x.sd);
-            if (x.card && HS.CARDS[x.card] && HS.CARDS[x.card].text) bits.push(HS.CARDS[x.card].text.replace(/<[^>]+>/g, ''));
-            if (x.expire) bits.push('(diesen Zug)');
-            if (bits.length) extra.push(bits.join(' '));
-          }
-        }
+        const extra = notesFor(g, e);
         html = cardHTML(g, e) + (extra.length ? `<div class="pv-ench">${extra.map(esc).join('<br>')}</div>` : '');
       }
       pv.innerHTML = html;
@@ -1070,6 +1098,43 @@
       if (sticky) this._pvT = setTimeout(() => pv.classList.add('hidden'), 2600);
     },
     hidePreview() { const pv = document.getElementById('pv'); if (pv) pv.classList.add('hidden'); },
+    /* Großansicht: jede Karte bildschirmfüllend mit Erklärungen (lange drücken / Rechtsklick) */
+    zoomHTML(t) {
+      const g = this.g;
+      if (t.dataset.cid) { const d = HS.card(t.dataset.cid); return d ? { card: cardHTML(null, null, d.id), notes: [], text: HS.textOf(d) } : null; }
+      if (!g) return null;
+      const e = t.dataset.power != null ? g.power(+t.dataset.power) : g.ent(+t.dataset.eid);
+      if (!e) return null;
+      const hidden = (e.zone === 'hand' && (e.owner !== this.view() || (this.mode === 'hotseat' && this.shownSeat !== e.owner))) || e.zone === 'deck';
+      if (hidden) return null;
+      if (e.zone === 'secret' && (e.owner !== this.view() || (this.mode === 'hotseat' && this.shownSeat !== e.owner))) return { card: '<div class="card back"></div>', notes: ['Verdecktes Geheimnis'], text: '<b>Geheimnis</b>' };
+      if (g.isHero(e)) {
+        const P = g.P(e.owner);
+        return { card: `<div class="heroinfo cls-${P.cls}"><b>${esc(P.name)}</b><span>${HS.CLASSES[P.cls].name}</span><span>Leben ${g.hp(e)}/${g.maxHp(e)}</span>${e.armor ? `<span>Rüstung ${e.armor}</span>` : ''}${g.atk(e) ? `<span>Angriff ${g.atk(e)}</span>` : ''}</div>`, notes: [], text: '' };
+      }
+      if (g.def(e).type === 'power') return { card: `<div class="heroinfo"><b>${esc(g.def(e).name)}</b><span>Heldenfähigkeit · Kosten ${g.def(e).cost}</span><p>${fmtText(g.text(e))}</p></div>`, notes: [], text: g.text(e) };
+      return { card: cardHTML(g, e), notes: notesFor(g, e), text: g.text(e) };
+    },
+    zoom(t) {
+      if (document.getElementById('zoom')) return;
+      const z = this.zoomHTML(t);
+      if (!z) return;
+      this.hidePreview();
+      if (this.screen === 'game' && this.g) this.cancel();
+      const gl = glossaryFor(z.text);
+      const side = (z.notes.length ? `<div class="zoom-notes">${z.notes.map(esc).join('<br>')}</div>` : '') + (gl ? `<dl class="zoom-gloss">${gl}</dl>` : '');
+      const el = document.createElement('div');
+      el.id = 'zoom';
+      el.className = 'zoom';
+      el.innerHTML = `<div class="zoom-inner"><div class="zoom-card">${z.card}</div>${side ? `<div class="zoom-side">${side}</div>` : ''}</div><div class="zoom-hint">Tippen oder Esc zum Schließen</div>`;
+      /* schließen erst beim nächsten Tippen – das Loslassen nach dem langen Drücken zählt nicht */
+      let armed = false;
+      el.addEventListener('pointerdown', (ev) => { ev.stopPropagation(); armed = true; });
+      el.addEventListener('pointerup', (ev) => { ev.preventDefault(); ev.stopPropagation(); if (armed) el.remove(); });
+      el.addEventListener('contextmenu', (ev) => ev.preventDefault());
+      document.body.append(el);
+    },
+    unzoom() { const z = document.getElementById('zoom'); if (z) { z.remove(); return true; } return false; },
 
     /* ================= Deck-Editor ================= */
     editorSetup() {
@@ -1124,7 +1189,7 @@
             <select id="ftype"><option value="">Alle Typen</option><option value="minion" ${f.type === 'minion' ? 'selected' : ''}>Diener</option><option value="spell" ${f.type === 'spell' ? 'selected' : ''}>Zauber</option><option value="weapon" ${f.type === 'weapon' ? 'selected' : ''}>Waffen</option></select>
             <input type="text" id="fq" placeholder="Suche…" value="${esc(f.q)}" style="flex:1;min-width:120px">
           </div>
-          <div class="grid">${grid || '<p style="color:var(--muted)">Keine Karten gefunden.</p>'}</div></div>
+          <p class="zoomtip">Klick: ins Deck · Rechtsklick oder lange drücken: Karte groß ansehen</p><div class="grid">${grid || '<p style="color:var(--muted)">Keine Karten gefunden.</p>'}</div></div>
           <div class="decklist cls-${deck.cls}">
             <input type="text" id="dname" value="${esc(deck.name)}" maxlength="40">
             <div><b style="color:${deck.cards.length === 30 ? 'var(--green)' : 'var(--gold)'}">${deck.cards.length}/30</b> Karten · ${HS.CLASSES[deck.cls].name}</div>
@@ -1203,6 +1268,38 @@
     if (st && was !== (innerHeight > innerWidth) && !UI.drag) UI.render();
   });
   document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && UI.screen === 'game') UI.cancel(); });
+
+  /* Großansicht öffnen: Rechtsklick oder langes Drücken auf eine Karte */
+  const ZOOM_SEL = '[data-cid],[data-eid],[data-power]';
+  document.addEventListener('contextmenu', (ev) => {
+    const t = ev.target.closest && ev.target.closest(ZOOM_SEL);
+    if (!t || t.closest('#zoom')) return;
+    ev.preventDefault(); ev.stopPropagation();
+    UI.zoom(t);
+  }, true);
+  let lp = null, swallowClick = 0;
+  document.addEventListener('pointerdown', (ev) => {
+    if (ev.button === 2) return;
+    const t = ev.target.closest && ev.target.closest(ZOOM_SEL);
+    if (!t || t.closest('#zoom')) return;
+    const x0 = ev.clientX, y0 = ev.clientY;
+    clearTimeout(lp && lp.timer);
+    lp = { x0, y0, timer: setTimeout(() => {
+      lp = null;
+      UI.drag = null; /* laufendes Ziehen abbrechen */
+      document.querySelectorAll('.lifted').forEach((x) => x.classList.remove('lifted'));
+      document.querySelectorAll('#stage .ghost').forEach((x) => x.remove());
+      swallowClick = Date.now();
+      UI.zoom(t);
+    }, 480) };
+  }, true);
+  const lpEnd = () => { if (lp) { clearTimeout(lp.timer); lp = null; } };
+  document.addEventListener('pointermove', (ev) => { if (lp && Math.hypot(ev.clientX - lp.x0, ev.clientY - lp.y0) > 10) lpEnd(); }, true);
+  document.addEventListener('pointerup', lpEnd, true);
+  document.addEventListener('pointercancel', lpEnd, true);
+  /* Klick nach langem Drücken nicht als Auswahl werten (z. B. Karte ins Deck legen) */
+  document.addEventListener('click', (ev) => { if (Date.now() - swallowClick < 900) { ev.preventDefault(); ev.stopPropagation(); swallowClick = 0; } }, true);
+  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && UI.unzoom()) ev.stopImmediatePropagation(); }, true);
 
   window.UI = UI;
   UI.menu();
