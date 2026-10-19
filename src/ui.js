@@ -552,7 +552,7 @@
         if (g.has(h, 'immune')) k.push('immune');
         if (act && i === g.cur && g.canAttack(h) && !sel) k.push('ready');
         const secrets = p.secrets.map((id) => `<div class="secret" data-eid="${id}" title="${i === me && !hideOwn ? esc(g.def(g.ent(id)).name) : 'Geheimnis'}">?</div>`).join('');
-        return `<div class="${k.join(' ')}" data-eid="${h.id}"><div class="h-art"><span class="noart">${GLYPH[p.cls]}</span></div><div class="h-frame"></div>
+        return `<div class="${k.join(' ')}" data-eid="${h.id}"><div class="h-art">${artTag(h.card, p.cls)}</div><div class="h-frame"></div>
           <div class="h-name">${esc(p.name)}</div><div class="secrets">${secrets}</div>
           ${a > 0 ? `<div class="h-atk">${a}</div>` : ''}${h.armor ? `<div class="h-arm">${h.armor}</div>` : ''}<div class="h-hp ${h.damage ? 'dn' : ''}">${g.hp(h)}</div>${floatFor(h)}</div>`;
       };
