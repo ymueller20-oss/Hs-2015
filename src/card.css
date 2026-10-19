@@ -88,9 +88,9 @@
 }
 .card .c-cost b, .card .c-atk b, .card .c-hp b { font-family: 'Crimson Text', var(--f-title); font-weight: 700; font-size: calc(var(--cw) * .155); }
 .card .c-cost i, .card .c-atk i, .card .c-hp i { display: none; }
-.card .c-cost { left: 3%; top: 2.6%; border-radius: 50%; background: url(../tex/mage.jpg) 30% 40% / 300% !important; }
-.card .c-atk { left: 3%; bottom: 1.8%; border-radius: 18% 18% 50% 50% / 18% 18% 40% 40%; background: url(../tex/paladin.jpg) 60% 30% / 300% !important; }
-.card .c-hp { right: 3%; bottom: 1.8%; border-radius: 50% 50% 46% 46% / 42% 42% 58% 58%; background: url(../tex/warrior.jpg) 40% 60% / 300% !important; }
+.card .c-cost { left: 3%; top: 2.6%; border-radius: 50%; background: linear-gradient(#2a56b070, #0a1e5070), url(../tex/mage.jpg) 30% 40% / 300% !important; }
+.card .c-atk { left: 3%; bottom: 1.8%; border-radius: 18% 18% 50% 50% / 18% 18% 40% 40%; background: linear-gradient(#b8862a70, #6a420a70), url(../tex/paladin.jpg) 60% 30% / 300% !important; }
+.card .c-hp { right: 3%; bottom: 1.8%; border-radius: 50% 50% 46% 46% / 42% 42% 58% 58%; background: linear-gradient(#a8221a70, #5a0a0670), url(../tex/warrior.jpg) 40% 60% / 300% !important; }
 .card.type-weapon .c-hp { border-radius: 18%; background: url(../tex/rogue.jpg) 50% 50% / 300% !important; }
 .card .c-cost.down b, .card .up b { color: #9aff7a; }
 .card .c-cost.up b, .card .dn b { color: #ff9a80; }

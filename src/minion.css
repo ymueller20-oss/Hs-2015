@@ -1,0 +1,87 @@
+/* Diener auf dem Brett: kleine Steintafel aus demselben Material wie die Karten – schwarzer Rand, marmorierter
+   Klassenrahmen, eingelassenes Bildfenster, Werte als Steine. Wird nach card.css geladen. */
+.stage .minion.minion {
+  border: 0; border-radius: calc(var(--mw) * .06); padding: 0; overflow: visible;
+  background: radial-gradient(ellipse at 50% 0%, #2a2622, #070605 70%);
+  box-shadow: 0 0 0 1px #000; filter: drop-shadow(0 6px 7px #000c);
+}
+/* Steinrahmen mit Abnutzung */
+.stage .minion.minion .m-frame {
+  inset: 4%; z-index: 0; border-radius: calc(var(--mw) * .035);
+  background: linear-gradient(170deg, #ffffff18, transparent 40%, #00000048), var(--tex, url(../tex/neutral.jpg)) center / 160% auto;
+  box-shadow: inset 1px 1px 0 #ffffff55, inset -1px -1px 0 #00000099, inset 0 0 calc(var(--mw) * .06) #000a;
+}
+.stage .minion.minion .m-frame::after {
+  content: ''; position: absolute; inset: -5%; border-radius: inherit; pointer-events: none;
+  background: url(../tex/wear.png) 0 0 / 100% 100%, url(../tex/grain.png) 0 0 / calc(var(--mw) * .8);
+}
+/* Bildfenster, abgeschrägt eingelassen */
+.stage .minion.minion .m-art {
+  inset: 9% 10% 21%; z-index: 1; clip-path: none; border-radius: 1px;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--cc) 40%, #1a1410), #070504);
+  border: calc(var(--mw) * .014) solid; border-color: #000000b0 #ffffff50 #ffffff50 #000000b0; box-shadow: 0 0 0 1px #000;
+}
+.stage .minion.minion .m-art img { filter: contrast(1.16) saturate(.7) sepia(.22) brightness(.93); }
+.stage .minion.minion .m-art::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 calc(var(--mw) * .06) #000c;
+  background: url(../tex/grain.png) 0 0 / calc(var(--mw) * .45), radial-gradient(ellipse at 50% 45%, transparent 50%, #1a0e0488);
+}
+.stage .minion.minion.stealth .m-art img { filter: brightness(.4) saturate(.3) blur(1px); }
+.stage .minion.minion.frozen .m-art img { filter: hue-rotate(170deg) saturate(.4) brightness(1.35); }
+.stage .minion.minion.silenced .m-art img { filter: grayscale(.85) contrast(1.1); }
+
+/* Typ als Pergamentplatte am unteren Rand */
+.stage .minion.minion .m-race {
+  bottom: 7.5%; padding: 0 .55em; height: 1.45em; display: flex; align-items: center; border: 0; border-radius: 2px;
+  background: linear-gradient(#ffffff30, #00000018), url(../tex/parch.jpg) center / 300% auto; color: #121010; text-shadow: 0 1px 0 #fff6;
+  font-family: 'Crimson Text', var(--f-body); font-weight: 700; font-size: calc(var(--mw) * .1); letter-spacing: 0;
+  box-shadow: inset 1px 1px 0 #ffffff70, inset -1px -1px 0 #0000007a, 0 0 0 1px #000c, 0 1px 3px #0008;
+}
+.stage .minion.minion .m-icons { bottom: 22%; z-index: 2; }
+.stage .minion.minion .m-icons i { background: #0c0a08e0; border: 1px solid #8a7a62; color: #f0dfb8; }
+
+/* Werte: Marmorsteine wie auf den Karten */
+.stage .minion.minion .m-atk, .stage .minion.minion .m-hp {
+  z-index: 3; bottom: -5%; width: 30%; aspect-ratio: 1; height: auto; padding: 0; display: grid; place-items: center; line-height: 1; filter: none;
+  border: calc(var(--mw) * .016) solid #14110e; color: #fff8ec; font-family: 'Crimson Text', var(--f-title); font-weight: 700; font-size: calc(var(--mw) * .22);
+  text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 0 0 4px #000;
+  box-shadow: 0 0 0 1px #5a4c3c, inset 1px 1px 0 #ffffff50, inset -1px -2px 0 #00000080, inset 0 0 calc(var(--mw) * .04) #000b, 0 2px 3px #000c;
+}
+.stage .minion.minion .m-atk { left: -3%; border-radius: 18% 18% 50% 50% / 18% 18% 40% 40%; background: linear-gradient(#b8862a70, #6a420a70), url(../tex/paladin.jpg) 60% 30% / 300%; }
+.stage .minion.minion .m-hp { right: -3%; border-radius: 50% 50% 46% 46% / 42% 42% 58% 58%; background: linear-gradient(#a8221a70, #5a0a0670), url(../tex/warrior.jpg) 40% 60% / 300%; }
+.stage .minion.minion .m-atk.up, .stage .minion.minion .m-hp.up { color: #9aff7a; }
+.stage .minion.minion .m-hp.dn, .stage .minion.minion .m-atk.dn { color: #ff9a80; }
+
+/* Spott: schwerer, eisenbeschlagener Steinrahmen mit Schildspitze */
+.stage .minion.minion.taunt { box-shadow: 0 0 0 1px #000, 0 0 0 calc(var(--mw) * .05) #2a2622, 0 0 0 calc(var(--mw) * .05 + 1px) #000; }
+.stage .minion.minion.taunt .m-frame {
+  inset: 4%; background: linear-gradient(170deg, #ffffff18, transparent 40%, #00000048), url(../tex/rogue.jpg) center / 160% auto;
+  box-shadow: inset 0 0 0 calc(var(--mw) * .025) color-mix(in srgb, var(--cc) 70%, #000), inset 1px 1px 0 calc(var(--mw) * .025) #ffffff40, inset 0 0 calc(var(--mw) * .06) #000a;
+}
+.stage .minion.minion.taunt .m-frame::before {
+  content: ''; position: absolute; left: 50%; top: -13%; width: 30%; aspect-ratio: 40 / 44; transform: translateX(-50%); z-index: 2;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 44'%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23b4b0a6'/%3E%3Cstop offset='.5' stop-color='%23605c54'/%3E%3Cstop offset='1' stop-color='%232a2824'/%3E%3C/linearGradient%3E%3Cpath d='M2 2h36v16c0 12-9 19-18 24C11 37 2 30 2 18z' fill='url(%23g)' stroke='%23000' stroke-width='2'/%3E%3Cpath d='M6 6h28v12c0 9-7 15-14 19C13 33 6 27 6 18z' fill='none' stroke='%23ffffff40' stroke-width='1'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+}
+/* Nieten in den Ecken */
+.stage .minion.minion.taunt .m-art { box-shadow: 0 0 0 1px #000; }
+.stage .minion.minion.taunt::before {
+  content: ''; position: absolute; inset: 2.5%; z-index: 2; pointer-events: none;
+  background:
+    radial-gradient(circle at 35% 35%, #d8d8dc, #4a4a50 60%, #000 75%) 0 0 / calc(var(--mw) * .08) calc(var(--mw) * .08) no-repeat,
+    radial-gradient(circle at 35% 35%, #d8d8dc, #4a4a50 60%, #000 75%) 100% 0 / calc(var(--mw) * .08) calc(var(--mw) * .08) no-repeat,
+    radial-gradient(circle at 35% 35%, #d8d8dc, #4a4a50 60%, #000 75%) 0 62% / calc(var(--mw) * .08) calc(var(--mw) * .08) no-repeat,
+    radial-gradient(circle at 35% 35%, #d8d8dc, #4a4a50 60%, #000 75%) 100% 62% / calc(var(--mw) * .08) calc(var(--mw) * .08) no-repeat;
+}
+.stage .minion.minion.taunt.frozen::before { content: '❄'; inset: auto; top: 2px; right: 4px; background: none; }
+
+/* Legendär: goldene Einfassung und Siegel oben */
+.stage .minion.minion.legend .m-frame { box-shadow: inset 0 0 0 calc(var(--mw) * .012) #c89a3a, inset 1px 1px 0 calc(var(--mw) * .012) #f0d080, inset 0 0 calc(var(--mw) * .06) #000a; }
+.stage .minion.minion.legend .m-art { box-shadow: 0 0 0 1px #000, 0 0 0 calc(var(--mw) * .014) #c89a3a; }
+.stage .minion.minion.legend::before {
+  content: '❖'; top: -.7em; z-index: 3; font-size: calc(var(--mw) * .2); line-height: 1; color: #e8c06a;
+  text-shadow: 0 0 calc(var(--mw) * .05) #ff9a2a88, 0 1px 0 #000, 0 0 2px #000;
+}
+.stage .minion.minion.legend.taunt::before { content: none; }
+
+/* Gottesschild folgt der eckigen Form */
+.stage .minion.minion.ds::after { inset: -7px; border-radius: calc(var(--mw) * .1); z-index: 4; }

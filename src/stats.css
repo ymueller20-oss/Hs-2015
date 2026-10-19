@@ -1,0 +1,41 @@
+/* Werte-Steine: dunkler, rissiger Stein mit nur schwach durchschimmernder Farbe (Mana blau, Angriff Bronze, Leben Blut).
+   Gilt für Karten, Diener, Helden, Waffe, Heldenfähigkeit und Manaanzeige. Wird als letztes Stylesheet geladen. */
+.card .c-cost, .card .c-atk, .card .c-hp,
+.stage .minion.minion .m-atk, .stage .minion.minion .m-hp,
+.stage .hero .h-hp, .stage .hero .h-atk, .stage .hero .h-arm,
+.stage .weapon .w-atk, .stage .weapon .w-dur, .stage .power .p-cost, .stage .mana-count {
+  --tint: #3a3a3a; --rim: #4a463e;
+  background: radial-gradient(circle at 38% 32%, var(--tint), transparent 72%), url(../tex/stone.jpg) var(--sp, 40% 40%) / 280% !important;
+  border: 2px solid #0a0908; clip-path: none; filter: none;
+  color: #e6dcc4; font-family: 'Crimson Text', var(--f-title); font-weight: 700;
+  text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 0 0 6px #000;
+  box-shadow: 0 0 0 1px var(--rim), inset 1px 1px 0 #ffffff26, inset -1px -2px 0 #000000a0, inset 0 0 6px #000d, 0 2px 4px #000d !important;
+  display: grid; place-items: center; line-height: 1; padding: 0;
+}
+/* Farbe nur als schwacher Schimmer im Stein und als dunkle Kante */
+.card .c-cost, .stage .power .p-cost, .stage .mana-count { --tint: #1c3a7a88; --rim: #2a3e62; --sp: 20% 70%; }
+.card .c-atk, .stage .minion.minion .m-atk, .stage .hero .h-atk, .stage .weapon .w-atk { --tint: #6a4a1288; --rim: #5a4420; --sp: 70% 20%; }
+.card .c-hp, .stage .minion.minion .m-hp, .stage .hero .h-hp { --tint: #6a120c88; --rim: #5a1c16; --sp: 50% 80%; }
+.card.type-weapon .c-hp, .stage .weapon .w-dur, .stage .hero .h-arm { --tint: #50505088; --rim: #4a4a4a; --sp: 80% 60%; }
+
+/* Formen: rund für Mana, Schild für Angriff, Tropfen für Leben, Wappen für Rüstung */
+.card .c-cost, .stage .power .p-cost, .stage .mana-count { border-radius: 50%; }
+.card .c-atk, .stage .minion.minion .m-atk, .stage .hero .h-atk, .stage .weapon .w-atk { border-radius: 18% 18% 50% 50% / 18% 18% 40% 40%; }
+.card .c-hp, .stage .minion.minion .m-hp, .stage .hero .h-hp { border-radius: 50% 50% 46% 46% / 42% 42% 58% 58%; padding-top: 0; }
+.card.type-weapon .c-hp, .stage .weapon .w-dur { border-radius: 22%; }
+.stage .hero .h-arm { border-radius: 10% 10% 50% 50% / 10% 10% 45% 45%; }
+.stage .hero .h-hp, .stage .hero .h-atk { aspect-ratio: 1; }
+.stage .mana-count b { color: #e6dcc4; font-family: 'Crimson Text', var(--f-title); }
+.stage .mana-count small { color: #8a9ab8; }
+
+/* Veränderte Werte: gedämpftes Grün / Rot statt Neon */
+.card .c-cost.down b, .card .up b, .stage .minion.minion .m-atk.up, .stage .minion.minion .m-hp.up, .stage .hero .h-hp.up { color: #9cc47a; }
+.card .c-cost.up b, .card .dn b, .stage .minion.minion .m-hp.dn, .stage .minion.minion .m-atk.dn, .stage .hero .h-hp.dn { color: #e0705c; }
+
+/* Manakristalle: dunkle Steinsplitter, volle glimmen nur schwach */
+.stage .crystals i { clip-path: polygon(50% 0, 100% 35%, 80% 100%, 20% 100%, 0 35%); filter: none !important;
+  background: url(../tex/stone.jpg) 50% 50% / 400% !important; }
+.stage .crystals i.full { background: radial-gradient(circle at 50% 55%, #a8c4f0 0, #3a62b0 38%, #1a2a5a88 60%, transparent 80%), url(../tex/stone.jpg) 30% 30% / 400% !important; }
+.stage .crystals i.spent { background: url(../tex/stone.jpg) 60% 60% / 400% !important; opacity: .8; }
+.stage .crystals i.locked { background: radial-gradient(circle at 50% 55%, #a04030 0, #5a1810 40%, transparent 75%), url(../tex/stone.jpg) 70% 30% / 400% !important; }
+.stage .crystals i.none { background: url(../tex/stone.jpg) 50% 50% / 400% !important; opacity: .25; }
