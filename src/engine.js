@@ -452,6 +452,10 @@
         if (n <= 0) return 0;
       }
       t.damage += n;
+      if (!this._combat) {
+        this.vfx({ type: 'hit', src: src ? src.id : 0, owner: src ? src.owner : -1, id: t.id, n });
+        if (src && !this.sim) this.log(`${this.nm(src)} → ${this.nm(t)}: ${n} Schaden`);
+      }
       if (src && this.inPlay(src)) {
         if (this.isMinion(src)) this.loseStealth(src);
         if (this.has(src, 'freezer')) this.freeze(t);
@@ -960,12 +964,13 @@
       const dAtk = this.atk(d);
       if (w && this.def(w).attackImmune) this._atkImmune = a;
       try {
+        this._combat = true;
         this.batch(() => {
           this.damage(a, d, aAtk);
           if (dAtk > 0) this.damage(d, a, dAtk);
           if (this.isMinion(a) && this.def(a).cleave && !a.silenced) for (const x of this.adj(d)) this.damage(a, x, aAtk);
         });
-      } finally { this._atkImmune = null; }
+      } finally { this._atkImmune = null; this._combat = false; }
       if (w && this.inPlay(w)) {
         if (this.def(w).gorehowl && this.isMinion(d)) this.buff(w, { atk: -1 });
         else w.damage++;

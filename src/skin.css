@@ -115,3 +115,15 @@
 .stage .minion .m-race { position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%); z-index: 2; padding: 1px 7px; border-radius: 3px;
   background: linear-gradient(#3a2a18, #1a0f06); border: 1px solid #c9952e; color: #f4dfa8; font-family: var(--f-title); font-size: 9px; letter-spacing: .5px; white-space: nowrap; }
 .stage .minion .m-icons { bottom: 22%; }
+
+/* Einzeltreffer */
+.bolt { position: absolute; z-index: 46; width: 22px; height: 22px; border-radius: 50%; pointer-events: none; transform: translate(-50%, -50%);
+  background: radial-gradient(circle, #fff 0 20%, #ffd36a 35%, #ff7a1a 60%, transparent 72%); box-shadow: 0 0 18px #ff9a2a, 0 0 36px #ff6a1a88; }
+.impact { position: absolute; z-index: 47; pointer-events: none; transform: translate(-50%, -50%); }
+.impact::before { content: ''; position: absolute; left: 50%; top: 50%; width: 70px; height: 70px; transform: translate(-50%, -50%); border-radius: 50%;
+  background: radial-gradient(circle, #fff8 0 15%, #ff8a3a66 40%, transparent 70%); animation: burst .45s ease-out forwards; }
+.impact span { position: relative; display: block; font-family: var(--f-title); font-weight: 700; font-size: 30px; color: #ff4a2a; text-shadow: 0 2px 3px #000, 0 0 10px #000; animation: impactnum .9s ease-out forwards; }
+@keyframes burst { from { transform: translate(-50%, -50%) scale(.3); opacity: 1; } to { transform: translate(-50%, -50%) scale(1.4); opacity: 0; } }
+@keyframes impactnum { 0% { transform: scale(1.6); opacity: 0; } 15% { opacity: 1; transform: scale(1.1); } 70% { opacity: 1; transform: translateY(-14px) scale(1); } 100% { opacity: 0; transform: translateY(-26px); } }
+.stage .minion.sleep::after { content: none; }
+.stage .minion .m-zzz { position: absolute; top: 14%; left: 50%; transform: translateX(-50%); z-index: 3; color: #fff; font-style: italic; font-size: 12px; text-shadow: 0 0 4px #000, 0 0 2px #000; pointer-events: none; }

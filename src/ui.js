@@ -444,11 +444,11 @@
         if (m.frozen) k.push('frozen');
         if (m.silenced) k.push('silenced');
         if (act && m.owner === g.cur && g.canAttack(m) && !sel) k.push('ready');
-        if (m.owner === g.cur && m.exhausted && !g.has(m, 'charge')) k.push('sleep');
+        const asleep = m.owner === g.cur && m.exhausted && !g.has(m, 'charge');
         if (!known.has(m.id)) k.push('enter');
         if (d.rarity === 'legendary') k.push('legend');
         return `<div class="${k.join(' ')}" data-eid="${m.id}"><div class="m-art">${artTag(m.card, d.cls)}</div><div class="m-frame"></div>
-          <div class="m-icons">${ic.join('')}</div>${d.race ? `<div class="m-race">${HS.RACES[d.race]}</div>` : ''}
+          <div class="m-icons">${ic.join('')}</div>${asleep ? '<div class="m-zzz">Zzz</div>' : ''}${d.race ? `<div class="m-race">${HS.RACES[d.race]}</div>` : ''}
           <div class="m-atk ${a > (d.atk || 0) ? 'up' : a < (d.atk || 0) ? 'dn' : ''}">${a}</div><div class="m-hp ${h < mx ? 'dn' : mx > d.hp ? 'up' : ''}">${h}</div>${floatFor(m)}</div>`;
       };
       const boardHTML = (i) => {
@@ -516,6 +516,7 @@
       const hint = sel ? (sel.kind === 'pos' ? 'Platz für den Diener wählen' : sel.kind === 'attack' ? 'Angriffsziel wählen' : 'Ziel wählen') + ' · Rechtsklick/Esc bricht ab' : act && myTurn ? 'Karten aufs Brett ziehen · Diener auf Ziele ziehen' : '';
       const logOpen = this.logOpen ? '' : 'hidden';
       const oldMinions = this.captureMinions();
+      this.lastPositions = oldMinions;
       const ar = HS.arena(this.arenaId);
       const aimg = HS.arenaImg(ar.id);
       const aStyle = `--a0:${ar.c[0]};--a1:${ar.c[1]};--a2:${ar.c[2]};--aline:${ar.line};--aglow:${ar.glow};${aimg ? `--aimg:url(${aimg});` : ''}`;
@@ -593,12 +594,44 @@
       const g = this.g;
       if (!g || !g.fx.length) return;
       const list = g.fx.splice(0);
+      const hits = list.filter((f) => f.type === 'hit');
+      hits.forEach((h, i) => setTimeout(() => this.bolt(h, hits.length > 6), i * (hits.length > 6 ? 40 : 170)));
       for (const f of list) {
         if (f.type === 'secret') this.showcase(f.card, g.P(f.owner).name, 'Geheimnis aufgedeckt!');
         else if (f.type === 'shield') this.popAt(f.id, 'shieldpop', 'Gottesschild!');
         else if (f.type === 'misattack') this.popAt(f.id, 'misattack', 'Falsches Ziel!');
         else if (f.type === 'immune') this.popAt(f.id, 'immunepop', 'Immun');
       }
+    },
+    /* Position eines Elements (lebend oder gerade gestorben) in Bühnenkoordinaten */
+    posOf(id) {
+      const el = app.querySelector(`.table [data-eid="${id}"]`);
+      if (el) { const o = this.captureOne(el); return [o.x + o.w / 2, o.y + o.h / 2]; }
+      const o = this.lastPositions && this.lastPositions.get(id);
+      return o ? [o.x + o.w / 2, o.y + o.h / 2] : null;
+    },
+    /* Einzeltreffer: Geschoss vom Verursacher zum Ziel, dann Einschlag mit Zahl */
+    bolt(h, quick) {
+      const st = document.getElementById('stage');
+      if (!st) return;
+      const to = this.posOf(h.id);
+      if (!to) return;
+      let from = h.src ? this.posOf(h.src) : null;
+      if (!from && h.owner >= 0) from = this.posOf(this.g.P(h.owner).hero);
+      const impact = () => {
+        const p = document.createElement('div');
+        p.className = 'impact';
+        p.style.cssText = `left:${to[0]}px;top:${to[1]}px`;
+        p.innerHTML = `<span>-${h.n}</span>`;
+        st.append(p);
+        setTimeout(() => p.remove(), 900);
+      };
+      if (quick || !from || (from[0] === to[0] && from[1] === to[1]) || matchMedia('(prefers-reduced-motion: reduce)').matches) return impact();
+      const b = document.createElement('div');
+      b.className = 'bolt';
+      b.style.cssText = `left:${from[0]}px;top:${from[1]}px`;
+      st.append(b);
+      b.animate([{ transform: 'translate(-50%,-50%) scale(.6)' }, { transform: `translate(calc(${to[0] - from[0]}px - 50%), calc(${to[1] - from[1]}px - 50%)) scale(1)` }], { duration: 260, easing: 'cubic-bezier(.4,0,.8,.6)' }).finished.then(() => { b.remove(); impact(); }, () => b.remove());
     },
     popAt(id, cls, text) {
       const st = document.getElementById('stage');
