@@ -1,0 +1,92 @@
+/* Eigenes Spieltisch-Design: Spielmatte, Rahmen, Edelsteine (Grafiken in ornaments.css) */
+
+/* --- Spielmatte statt Oval --- */
+.stage .table::before {
+  content: ''; position: absolute; left: 132px; right: 132px; top: 128px; bottom: 214px; border-radius: 4px; pointer-events: none; z-index: 1;
+  border: 2px solid #1a0f06;
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--aline) 55%, #6a4a1a), inset 0 0 0 5px #1a0f06, inset 0 0 0 6px color-mix(in srgb, var(--aline) 30%, transparent), inset 0 0 90px #000a, 0 0 0 6px #00000055, 0 10px 40px #000a;
+  background: var(--o-c-tl) left top / 70px 70px no-repeat, var(--o-c-tr) right top / 70px 70px no-repeat, var(--o-c-bl) left bottom / 70px 70px no-repeat, var(--o-c-br) right bottom / 70px 70px no-repeat;
+}
+.stage.portrait .table::before { left: 8px; right: 8px; top: 248px; bottom: 388px; border-radius: 4px; }
+.stage .midline { z-index: 2; }
+.stage .midline::before {
+  content: ''; position: absolute; left: 132px; right: 132px; top: -9px; height: 18px; pointer-events: none;
+  background: linear-gradient(#0000 0 6px, color-mix(in srgb, var(--aline) 60%, #6a4a1a) 6px 7px, #1a0f06 7px 11px, color-mix(in srgb, var(--aline) 60%, #6a4a1a) 11px 12px, #0000 12px);
+}
+.stage.portrait .midline::before { left: 8px; right: 8px; }
+.stage .midline::after { content: ''; position: absolute; left: 50%; top: -30px; width: 60px; height: 60px; transform: translateX(-50%); background: var(--o-medal) center / contain no-repeat; filter: drop-shadow(0 3px 6px #000c); pointer-events: none; }
+
+/* --- Diener: Bogenrahmen statt Oval --- */
+.stage .minion { width: var(--mw); height: calc(var(--mw) * 1.3); border: 0; border-radius: 0; background: none; box-shadow: none; filter: drop-shadow(0 6px 8px #000c); }
+.stage .minion .m-art { inset: 0; border-radius: 0; clip-path: var(--clip-min); background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--cc) 55%, #f5e0b0), color-mix(in srgb, var(--cc) 70%, #000)); }
+.stage .minion .m-frame { position: absolute; inset: 0; background: var(--o-min) center / 100% 100% no-repeat; pointer-events: none; z-index: 1; }
+.stage .minion.taunt { border: 0; border-radius: 0; box-shadow: none; outline: 0; }
+.stage .minion.taunt .m-frame { inset: -6px -7px -4px; background-image: var(--o-taunt); }
+.stage .minion.legend { border: 0; box-shadow: none; }
+.stage .minion.legend .m-frame { background-image: var(--o-legend); }
+.stage .minion.legend::before { content: none; }
+.stage .minion.ready { box-shadow: none; filter: drop-shadow(0 0 7px var(--green)) drop-shadow(0 0 3px var(--green)); }
+.stage .minion.selected { filter: drop-shadow(0 0 8px var(--gold)) drop-shadow(0 0 3px var(--gold)); box-shadow: none !important; }
+.stage .minion.targetable { filter: drop-shadow(0 0 9px var(--red)) drop-shadow(0 0 3px var(--red)); box-shadow: none !important; }
+.stage .minion.ds::after { inset: -8px; border-radius: 48% 48% 14% 14% / 40% 40% 10% 10%; }
+.stage .minion .m-icons { bottom: 16%; z-index: 2; }
+
+/* --- Werte als Edelsteine --- */
+.stage .minion .m-atk, .stage .minion .m-hp, .stage .hero .h-hp, .stage .hero .h-atk, .stage .hero .h-arm, .card .c-atk, .card .c-hp, .card .c-cost, .weapon .w-atk, .weapon .w-dur, .power .p-cost {
+  border: 0; border-radius: 0; clip-path: none; box-shadow: none; background-color: transparent; filter: drop-shadow(0 2px 3px #000c);
+}
+.stage .minion .m-hp, .stage .hero .h-hp, .card .c-hp, .weapon .w-dur { background: var(--o-hp) center / 100% 100% no-repeat; padding-top: 12%; }
+.stage .minion .m-atk, .stage .hero .h-atk, .card .c-atk, .weapon .w-atk { background: var(--o-atk) center / 100% 100% no-repeat; }
+.card.type-weapon .c-hp, .weapon .w-dur { background: var(--o-armor) center / 100% 100% no-repeat; padding-top: 0; }
+.stage .hero .h-arm { background: var(--o-armor) center / 100% 100% no-repeat; }
+.card .c-cost, .power .p-cost { background: var(--o-cost) center / 100% 100% no-repeat; }
+.stage .minion .m-atk { left: -12%; bottom: -6%; width: 40%; }
+.stage .minion .m-hp { right: -12%; bottom: -6%; width: 38%; aspect-ratio: 40 / 46; }
+.card .c-hp { aspect-ratio: 40 / 46; }
+
+/* --- Held: Spitzbogen mit Namensplakette --- */
+.stage .hero { width: 136px; height: 160px; aspect-ratio: auto; border-radius: 0; }
+.stage.portrait .hero { width: 122px; height: 144px; }
+.stage .hero .h-art { inset: 0; border-radius: 0; clip-path: var(--clip-hero); }
+.stage .hero .h-frame { inset: 0; border: 0; border-radius: 0; box-shadow: none; background: var(--o-hero) center / 100% 100% no-repeat; filter: drop-shadow(0 8px 12px #000c); }
+.stage .hero .h-name { bottom: 4.5%; left: 8%; right: 8%; font-size: .72em; color: #f4dfa8; letter-spacing: .5px; z-index: 2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stage .hero .h-hp { right: -10%; bottom: 10%; width: 36%; height: auto; aspect-ratio: 40 / 46; font-size: 26px; }
+.stage .hero .h-atk { left: -10%; bottom: 10%; width: 36%; font-size: 24px; }
+.stage .hero .h-arm { right: -9%; top: 36%; width: 30%; height: auto; aspect-ratio: 40 / 46; font-size: 18px; }
+.stage .hero.ready .h-frame { border: 0; box-shadow: none; filter: drop-shadow(0 0 8px var(--green)) drop-shadow(0 0 3px var(--green)); }
+.stage .hero.targetable .h-frame { border: 0; box-shadow: none; filter: drop-shadow(0 0 10px var(--red)) drop-shadow(0 0 3px var(--red)); }
+.stage .hero.immune .h-frame { border: 0; box-shadow: none; filter: drop-shadow(0 0 12px #ffe680); }
+.stage .secrets { top: 18px; }
+
+/* --- Heldenfähigkeit und Waffe als Medaillons --- */
+.stage .power { width: 78px; height: 78px; border: 0; background: var(--o-power) center / 100% 100% no-repeat, radial-gradient(circle, color-mix(in srgb, var(--cc) 55%, #fff) 0 30%, color-mix(in srgb, var(--cc) 70%, #000) 37%, transparent 38%); box-shadow: none; filter: drop-shadow(0 4px 6px #000c); }
+.stage .power .p-name { max-width: 50px; font-size: 9px; }
+.stage .power .p-cost { width: 28px; height: 28px; top: -12px; font-size: 13px; }
+.stage .power.playable { box-shadow: none !important; filter: drop-shadow(0 0 8px var(--green)) drop-shadow(0 0 3px var(--green)); }
+.stage .weapon { width: 78px; height: 78px; border: 0; box-shadow: none; background: var(--o-weapon) center / 100% 100% no-repeat; filter: drop-shadow(0 4px 6px #000c); }
+.stage .weapon .w-art { inset: 9px; border-radius: 0; clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%); }
+.stage .weapon .w-atk, .stage .weapon .w-dur { width: 30px; height: 32px; bottom: -10px; font-family: var(--f-title); }
+
+/* --- Mana: Saphir-Zahl und Kristallleiste --- */
+.stage .mana { flex-direction: row; align-items: center; gap: 6px; min-width: 0; padding: 4px 10px 4px 4px; border-radius: 30px;
+  background: linear-gradient(#2a2420, #12100e); box-shadow: inset 0 0 0 1px #00000088, inset 0 1px 0 #ffffff14, 0 0 0 2px color-mix(in srgb, var(--aline) 35%, #3a2a18), 0 4px 10px #000a; }
+.stage .mana-count { position: relative; width: 46px; height: 46px; flex: none; display: grid; place-items: center; background: var(--o-cost) center / 100% 100% no-repeat; filter: drop-shadow(0 2px 3px #000c); }
+.stage .mana-count b { font-family: var(--f-title); font-size: 20px; color: #fff; text-shadow: 0 2px 2px #000; line-height: 1; }
+.stage .mana-count small { position: absolute; bottom: -6px; right: -12px; font-family: var(--f-title); font-size: 12px; color: #9fc6ff; text-shadow: 0 1px 2px #000; }
+.stage .crystals { gap: 1px; display: grid; grid-template-columns: repeat(5, 14px); }
+.stage .crystals i { width: 14px; height: 19px; clip-path: none; background: none; }
+.stage .crystals i.full { background: var(--o-cr-full) center / contain no-repeat; filter: drop-shadow(0 0 3px #4a9aff); }
+.stage .crystals i.spent { background: var(--o-cr-spent) center / contain no-repeat; }
+.stage .crystals i.locked { background: var(--o-cr-locked) center / contain no-repeat; filter: drop-shadow(0 0 3px #ff4a3a); }
+.stage .crystals i.none { background: var(--o-cr-spent) center / contain no-repeat; opacity: .18; }
+.stage .mana em { position: absolute; margin-top: 64px; font-size: 11px; }
+
+/* --- Deckstapel --- */
+.stage .pile-cards { width: 44px; height: 60px; border-radius: 3px; background: radial-gradient(circle at 50% 45%, #7a4a22, #2a150a 75%); border: 2px solid #c9952e; box-shadow: 2px 2px 0 #4a2c12, 4px 4px 0 #2a170b, 6px 6px 0 #1a0e06, 0 8px 12px #000c; color: #ffe39a; font-size: 15px; }
+
+/* --- Zug-beenden-Knopf als Metallplakette --- */
+.stage .turnbtn { border-radius: 6px; clip-path: polygon(10% 0, 90% 0, 100% 50%, 90% 100%, 10% 100%, 0 50%); padding: 14px 26px; border: 0; box-shadow: none; }
+.stage.portrait { --mw: 98px; }
+.stage .crystals i.none { opacity: .35; }
+.stage.portrait .board { gap: 4px; }
+.stage .minion .m-atk, .stage .minion .m-hp { font-size: calc(var(--mw) * .24); }

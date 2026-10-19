@@ -431,7 +431,7 @@
         if (m.owner === g.cur && m.exhausted && !g.has(m, 'charge')) k.push('sleep');
         if (!known.has(m.id)) k.push('enter');
         if (d.rarity === 'legendary') k.push('legend');
-        return `<div class="${k.join(' ')}" data-eid="${m.id}"><div class="m-art">${artTag(m.card, d.cls)}</div>
+        return `<div class="${k.join(' ')}" data-eid="${m.id}"><div class="m-art">${artTag(m.card, d.cls)}</div><div class="m-frame"></div>
           <div class="m-icons">${ic.join('')}</div>
           <div class="m-atk ${a > (d.atk || 0) ? 'up' : a < (d.atk || 0) ? 'dn' : ''}">${a}</div><div class="m-hp ${h < mx ? 'dn' : mx > d.hp ? 'up' : ''}">${h}</div>${floatFor(m)}</div>`;
       };
@@ -478,7 +478,7 @@
           const st = k < p.mana ? 'full' : k < p.maxMana - p.locked ? 'spent' : k < p.maxMana ? 'locked' : 'none';
           s += `<i class="${st}"></i>`;
         }
-        return `<div class="mana"><b>${p.mana}<small>/${p.maxMana}</small></b><span class="crystals">${s}</span>${p.overload ? `<em>+${p.overload} Überladung</em>` : ''}</div>`;
+        return `<div class="mana"><div class="mana-count"><b>${p.mana}</b><small>/${p.maxMana}</small></div><span class="crystals">${s}</span>${p.overload ? `<em>+${p.overload} Überladung</em>` : ''}</div>`;
       };
       const pile = (i) => `<div class="pile" title="Deck"><div class="pile-cards">${g.P(i).deck.length}</div><span>Deck</span></div>`;
       const handCards = g.hand(me);
