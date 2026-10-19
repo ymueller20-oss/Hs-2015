@@ -50,9 +50,10 @@
   background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--cc) 40%, #1a1410), #070504);
   border: var(--bev) solid; border-color: #000000b0 #ffffff50 #ffffff50 #000000b0; box-shadow: 0 0 0 1px #000;
 }
-.card .c-art img { width: 100%; height: 100%; object-fit: cover; display: block; filter: contrast(1.1) saturate(.82) sepia(.12) brightness(.96); }
+.card .c-art img { width: 100%; height: 100%; object-fit: cover; display: block; filter: contrast(1.16) saturate(.7) sepia(.22) brightness(.93); }
 .card .c-art::after { content: ''; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 calc(var(--cw) * .05) #000c;
-  background: radial-gradient(ellipse at 50% 45%, transparent 55%, #1a0e0466); }
+  background: url(../tex/grain.png) 0 0 / calc(var(--cw) * .45), url(../tex/grain.png) 37% 61% / calc(var(--cw) * .7),
+    radial-gradient(ellipse at 50% 45%, transparent 50%, #1a0e0488), linear-gradient(#3a240c18, #3a240c18); }
 .card .c-art .noart { color: #ffffff20; }
 
 /* Typzeile mit Seltenheitsstein rechts */
