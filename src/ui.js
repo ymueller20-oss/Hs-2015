@@ -82,6 +82,11 @@
     return { cls, cards: HS.randomDeck(cls), name: 'Zufallsdeck' };
   }
 
+  function arenaSelect(id, val) {
+    return `<select id="${id}"><option value="random">Zufälliges Spielfeld</option>${HS.ARENAS.map((a) => `<option value="${a.id}" ${a.id === val ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>`;
+  }
+  const pickArena = (v) => (v && v !== 'random' ? v : HS.ARENAS[Math.floor(Math.random() * HS.ARENAS.length)].id);
+
   /* ================= Menü ================= */
   const UI = {
     screen: 'menu',
@@ -107,6 +112,7 @@
       app.innerHTML = `<div class="menu"><h1>Gegen die KI</h1><div class="box">
         <label>Dein Deck</label>${deckSelect('d0', last.ai0 || 'preset:2')}
         <label>Deck der KI</label><select id="d1"><option value="any">Zufälliges Startdeck</option>${deckOptions().map((o) => `<option value="${o.v}" ${o.v === last.ai1 ? 'selected' : ''}>${esc(o.t)}</option>`).join('')}</select>
+        <label>Spielfeld</label>${arenaSelect('arena', last.arena)}
         <div class="row end" style="margin-top:16px"><button id="back">Zurück</button><button class="primary" id="go">Spielen</button></div></div></div>`;
       app.querySelector('#back').onclick = () => this.menu();
       app.querySelector('#go').onclick = () => {
@@ -116,7 +122,9 @@
         const d1 = v1 === 'any' ? resolveDeck('preset:' + Math.floor(Math.random() * HS.PRESETS.length)) : resolveDeck(v1);
         d0.name = 'Du (' + HS.CLASSES[d0.cls].name + ')';
         d1.name = 'KI (' + HS.CLASSES[d1.cls].name + ')';
-        this.startGame('ai', [d0, d1], { first: Math.random() < 0.5 ? 0 : 1 });
+        const av = app.querySelector('#arena').value;
+        Store.set('hs2015_last', Object.assign(last, { arena: av }));
+        this.startGame('ai', [d0, d1], { first: Math.random() < 0.5 ? 0 : 1, arena: pickArena(av) });
       };
     },
 
@@ -124,6 +132,7 @@
       const last = Store.get('hs2015_last', {});
       const online = HS.Net.available();
       app.innerHTML = `<div class="menu"><h1>Duell</h1>
+        <div class="box"><label style="margin-top:0">Spielfeld (für dich)</label>${arenaSelect('arena', last.arena)}</div>
         <div class="box"><h2>Online gegen Freunde</h2>
           ${online ? `<label>Dein Name</label><input type="text" id="pname" maxlength="24" value="${esc(last.pname || '')}" placeholder="Spieler">
           <label>Dein Deck</label>${deckSelect('od', last.od || 'preset:0')}
@@ -144,14 +153,16 @@
         Store.set('hs2015_last', Object.assign(last, { l0: v[0], l1: v[1], n0: n[0], n1: n[1] }));
         const d = v.map(resolveDeck);
         d[0].name = n[0]; d[1].name = n[1];
-        this.startGame('hotseat', d, { first: Math.random() < 0.5 ? 0 : 1 });
+        const av = app.querySelector('#arena').value;
+        Store.set('hs2015_last', Object.assign(last, { arena: av }));
+        this.startGame('hotseat', d, { first: Math.random() < 0.5 ? 0 : 1, arena: pickArena(av) });
       };
       if (!online) return;
       const err = app.querySelector('#oerr');
       const getDeck = () => {
         const v = app.querySelector('#od').value;
         const name = app.querySelector('#pname').value.trim() || 'Spieler';
-        Store.set('hs2015_last', Object.assign(last, { od: v, pname: name }));
+        Store.set('hs2015_last', Object.assign(last, { od: v, pname: name, arena: app.querySelector('#arena').value }));
         const d = resolveDeck(v);
         return { cls: d.cls, cards: d.cards, player: name };
       };
@@ -188,7 +199,7 @@
         return;
       }
       if (ev.type === 'start') {
-        this.startGame('online', ev.decks.map((d) => ({ cls: d.cls, cards: d.cards, name: d.name })), { seed: ev.seed, first: ev.first, seat: this.netSeat });
+        this.startGame('online', ev.decks.map((d) => ({ cls: d.cls, cards: d.cards, name: d.name })), { seed: ev.seed, first: ev.first, seat: this.netSeat, arena: pickArena(Store.get('hs2015_last', {}).arena) });
         return;
       }
       if (ev.type === 'action' && this.g && this.mode === 'online') {
@@ -213,6 +224,8 @@
     startGame(mode, decks, o) {
       this.stopGame();
       this.mode = mode;
+      this.arenaId = o.arena || pickArena('random');
+      this.ambience = null;
       this.g = HS.Game.create({ decks, seed: o.seed, first: o.first });
       this.seat = mode === 'online' ? o.seat : 0;
       this.sel = null;
@@ -226,6 +239,8 @@
       this.checkOverlays();
     },
     stopGame() {
+      HS.stopAmbience();
+      this.ambience = null;
       clearTimeout(this.aiTimer); this.aiTimer = null;
       clearInterval(this.timer); this.timer = null;
       hideModal();
@@ -483,8 +498,12 @@
       const status = g.s.phase === 'over' ? 'Spiel beendet' : this.busy ? 'Sende …' : myTurn ? (this.mode === 'hotseat' ? `${esc(g.P(me).name)} ist am Zug` : 'Dein Zug') : `${esc(g.P(g.cur).name)} ist am Zug`;
       const hint = sel ? (sel.kind === 'pos' ? 'Platz für den Diener wählen' : sel.kind === 'attack' ? 'Angriffsziel wählen' : 'Ziel wählen') + ' · Rechtsklick/Esc bricht ab' : act && myTurn ? 'Karten aufs Brett ziehen · Diener auf Ziele ziehen' : '';
       const logOpen = this.logOpen ? '' : 'hidden';
+      const ar = HS.arena(this.arenaId);
+      const aimg = HS.arenaImg(ar.id);
+      const aStyle = `--a0:${ar.c[0]};--a1:${ar.c[1]};--a2:${ar.c[2]};--aline:${ar.line};--aglow:${ar.glow};${aimg ? `--aimg:url(${aimg});` : ''}`;
+      const oldFx = this.ambience;
       app.innerHTML = `<div class="game"><div class="stage" id="stage">
-        <div class="table">
+        <div class="table arena-${ar.id}" data-arena="${ar.id}" style="${aStyle}"><div class="arena-name">${esc(ar.name)}</div>
           <div class="opp-hand">${oppHand}</div>
           <div class="hero-row opp">${pile(op)}${manaHTML(op)}${weaponHTML(op)}${heroHTML(op)}${powerHTML(op)}</div>
           <div class="board opp">${boardHTML(op)}</div>
@@ -501,6 +520,7 @@
         <div class="turn-banner" id="banner"></div>
       </div></div>`;
       this.fit();
+      this.mountAmbience(oldFx);
       const log = app.querySelector('.log');
       log.scrollTop = log.scrollHeight;
       this.knownIds = nowIds;
@@ -518,6 +538,21 @@
       this.scale = sc;
       st.classList.toggle('portrait', portrait);
       st.style.transform = `translate(${(innerWidth - W * sc) / 2}px, ${(innerHeight - H * sc) / 2}px) scale(${sc})`;
+    },
+    /* Atmosphäre-Leinwand bleibt über Neuaufbauten hinweg erhalten */
+    mountAmbience(old) {
+      const table = app.querySelector('.table');
+      if (!table) return;
+      const st = document.getElementById('stage');
+      const W = st.classList.contains('portrait') ? 720 : 1280, H = st.classList.contains('portrait') ? 1280 : 720;
+      if (old && old.width === W && old.height === H && old.dataset.arena === this.arenaId) { table.prepend(old); return; }
+      const cv = document.createElement('canvas');
+      cv.className = 'ambience';
+      cv.width = W; cv.height = H;
+      cv.dataset.arena = this.arenaId;
+      table.prepend(cv);
+      this.ambience = cv;
+      HS.startAmbience(cv, this.arenaId);
     },
     banner(text) {
       const b = app.querySelector('#banner');
@@ -1010,7 +1045,13 @@
     const e = UI.g.ent(+t.dataset.eid);
     if (e) UI.preview(e);
   });
-  addEventListener('resize', () => { if (UI.screen === 'game') UI.fit(); });
+  addEventListener('resize', () => {
+    if (UI.screen !== 'game' || !UI.g) return;
+    const st = document.getElementById('stage');
+    const was = st && st.classList.contains('portrait');
+    UI.fit();
+    if (st && was !== (innerHeight > innerWidth) && !UI.drag) UI.render();
+  });
   document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && UI.screen === 'game') UI.cancel(); });
 
   window.UI = UI;

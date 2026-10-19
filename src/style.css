@@ -416,3 +416,33 @@ body.portrait-unused .game::after {
 .stage.portrait .pv-pop .card { --cw: 300px; }
 .stage.portrait .logpanel { width: auto; right: 10px; bottom: 260px; }
 .stage.portrait .turn-banner { font-size: 2.6em; }
+
+/* ===== Spielfelder ===== */
+.stage .table {
+  --a0: #5c4428; --a1: #3a2a18; --a2: #1a120a; --aline: #e4bd63; --aglow: #ffdc9a; --tex: none;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 50%, transparent 40%, rgba(0,0,0,.55) 100%),
+    var(--tex),
+    var(--aimg, radial-gradient(ellipse at 50% 50%, var(--a0) 0%, var(--a1) 55%, var(--a2) 100%));
+  background-size: cover, auto, cover;
+  background-position: center;
+}
+.stage .table::before { border-color: color-mix(in srgb, var(--aline) 35%, transparent); box-shadow: inset 0 0 80px #000b, 0 0 0 10px #00000030, 0 0 40px color-mix(in srgb, var(--aglow) 18%, transparent); }
+.stage .table::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1; box-shadow: inset 0 0 120px color-mix(in srgb, var(--aglow) 14%, transparent); }
+.ambience { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+.stage .hero-row, .stage .board, .stage .hand, .stage .opp-hand { z-index: 3; }
+.stage .midline::before { background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--aline) 45%, transparent), transparent); }
+.arena-name { position: absolute; left: 14px; bottom: 8px; z-index: 2; font-family: var(--f-title); font-size: .7em; letter-spacing: 2px; text-transform: uppercase; color: color-mix(in srgb, var(--aline) 70%, #fff); opacity: .55; pointer-events: none; }
+.stage.portrait .arena-name { bottom: auto; top: 50%; left: 10px; transform: translateY(-50%) rotate(-90deg); transform-origin: left center; }
+
+/* Bodenstrukturen (bis gemalte Hintergründe vorliegen) */
+.arena-swamp { --tex: radial-gradient(ellipse 9% 6% at 20% 30%, #0b140899 0 70%, transparent 72%), radial-gradient(ellipse 7% 5% at 78% 64%, #0b140899 0 70%, transparent 72%), radial-gradient(ellipse 6% 4% at 64% 22%, #0b140888 0 70%, transparent 72%), radial-gradient(ellipse 8% 5% at 30% 76%, #0b140888 0 70%, transparent 72%), repeating-radial-gradient(circle at 50% 50%, #ffffff05 0 2px, transparent 2px 9px); }
+.arena-volcano { --tex: radial-gradient(ellipse 50% 40% at 50% 50%, transparent 60%, #ff5a1a33 80%, #ff8a2a55 100%), repeating-linear-gradient(115deg, transparent 0 60px, #ff6a1a22 60px 62px, transparent 62px 130px), repeating-linear-gradient(35deg, transparent 0 90px, #ff8a2a1a 90px 92px, transparent 92px 170px); }
+.arena-forest { --tex: radial-gradient(circle at 12% 18%, #6a8a3a55 0 40px, transparent 42px), radial-gradient(circle at 88% 82%, #6a8a3a55 0 50px, transparent 52px), radial-gradient(circle at 90% 14%, #4a6a2a55 0 34px, transparent 36px), radial-gradient(circle at 8% 86%, #4a6a2a55 0 44px, transparent 46px), repeating-linear-gradient(90deg, #00000014 0 4px, transparent 4px 52px); }
+.arena-market { --tex: radial-gradient(circle at 50% 50%, #ffffff10 0 9px, transparent 10px) 0 0 / 26px 22px, radial-gradient(circle at 50% 50%, #00000018 0 11px, transparent 12px) 13px 11px / 26px 22px; }
+.arena-castle { --tex: linear-gradient(#0000002a 2px, transparent 2px) 0 0 / 100% 64px, linear-gradient(90deg, #0000002a 2px, transparent 2px) 0 0 / 96px 100%, radial-gradient(circle at 50% 50%, transparent 0 150px, #e4bd6320 151px 156px, transparent 157px); }
+.arena-ice { --tex: repeating-linear-gradient(60deg, #ffffff10 0 1px, transparent 1px 70px), repeating-linear-gradient(-60deg, #ffffff10 0 1px, transparent 1px 70px), radial-gradient(ellipse 50% 40% at 50% 50%, transparent 55%, #e0f6ff22 100%); }
+.arena-crypt { --tex: linear-gradient(#00000044 3px, transparent 3px) 0 0 / 100% 90px, linear-gradient(90deg, #00000044 3px, transparent 3px) 0 0 / 140px 100%, radial-gradient(ellipse 50% 40% at 50% 50%, transparent 60%, #7affc014 100%); }
+.arena-desert { --tex: repeating-radial-gradient(ellipse 160% 40% at 50% 120%, #ffffff0c 0 6px, transparent 6px 26px), radial-gradient(ellipse 50% 40% at 50% 50%, transparent 55%, #2a1a0a44 100%); }
+.arena-forge { --tex: linear-gradient(#0000003a 3px, transparent 3px) 0 0 / 100% 110px, linear-gradient(90deg, #0000003a 3px, transparent 3px) 0 0 / 110px 100%, radial-gradient(circle at 50% 50%, #ffffff12 0 3px, transparent 4px) 0 0 / 110px 110px, radial-gradient(ellipse 50% 40% at 50% 50%, transparent 60%, #ff7a2a33 100%); }
+.arena-grove { --tex: radial-gradient(circle at 50% 50%, transparent 0 200px, #c8d8ff26 201px 205px, transparent 206px), radial-gradient(circle at 50% 50%, transparent 0 260px, #c8d8ff14 261px 263px, transparent 264px), radial-gradient(ellipse 50% 40% at 50% 50%, transparent 50%, #9fb4ff22 100%); }
