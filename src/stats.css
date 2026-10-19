@@ -5,17 +5,18 @@
 .stage .hero .h-hp, .stage .hero .h-atk, .stage .hero .h-arm,
 .stage .weapon .w-atk, .stage .weapon .w-dur, .stage .power .p-cost, .stage .mana-count {
   --tint: #3a3a3a; --rim: #4a463e;
-  background: radial-gradient(circle at 38% 32%, var(--tint), transparent 72%), url(../tex/stone.jpg) var(--sp, 40% 40%) / 280% !important;
+  background: radial-gradient(circle at 38% 32%, var(--tint), transparent 72%), linear-gradient(var(--sdark, #0000), var(--sdark, #0000)),
+    var(--stex, url(../tex/stone.jpg)) var(--sp, 40% 40%) / var(--ssz, 280%) !important;
   border: 2px solid #0a0908; clip-path: none; filter: none;
   color: #e6dcc4; font-family: 'Crimson Text', var(--f-title); font-weight: 700;
   text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 0 0 6px #000;
-  box-shadow: 0 0 0 1px var(--rim), inset 1px 1px 0 #ffffff26, inset -1px -2px 0 #000000a0, inset 0 0 6px #000d, 0 2px 4px #000d !important;
+  box-shadow: 0 0 0 1.5px var(--rim), inset 1px 1px 0 #ffffff26, inset -1px -2px 0 #000000a0, inset 0 0 4px #0009, 0 2px 4px #000d !important;
   display: grid; place-items: center; line-height: 1; padding: 0;
 }
 /* Farbe nur als schwacher Schimmer im Stein und als dunkle Kante */
-.card .c-cost, .stage .power .p-cost, .stage .mana-count { --tint: #1c3a7a88; --rim: #2a3e62; --sp: 20% 70%; }
-.card .c-atk, .stage .minion.minion .m-atk, .stage .hero .h-atk, .stage .weapon .w-atk { --tint: #6a4a1288; --rim: #5a4420; --sp: 70% 20%; }
-.card .c-hp, .stage .minion.minion .m-hp, .stage .hero .h-hp { --tint: #6a120c88; --rim: #5a1c16; --sp: 50% 80%; }
+.card .c-cost, .stage .power .p-cost, .stage .mana-count { --tint: #1c3a7a55; --rim: #3a5a8e; --sp: 20% 70%; }
+.card .c-atk, .stage .minion.minion .m-atk, .stage .hero .h-atk, .stage .weapon .w-atk { --tint: #6a4a1255; --rim: #8a6a2a; --sp: 70% 20%; }
+.card .c-hp, .stage .minion.minion .m-hp, .stage .hero .h-hp { --tint: #6a120c55; --rim: #8a2a1e; --sp: 50% 80%; }
 .card.type-weapon .c-hp, .stage .weapon .w-dur, .stage .hero .h-arm { --tint: #50505088; --rim: #4a4a4a; --sp: 80% 60%; }
 
 /* Formen: rund für Mana, Schild für Angriff, Tropfen für Leben, Wappen für Rüstung */
@@ -39,3 +40,23 @@
 .stage .crystals i.spent { background: url(../tex/stone.jpg) 60% 60% / 400% !important; opacity: .8; }
 .stage .crystals i.locked { background: radial-gradient(circle at 50% 55%, #a04030 0, #5a1810 40%, transparent 75%), url(../tex/stone.jpg) 70% 30% / 400% !important; }
 .stage .crystals i.none { background: url(../tex/stone.jpg) 50% 50% / 400% !important; opacity: .25; }
+
+/* Werte-Steine im Material des Motivs (Zauberschule, Volk, Name) – dunkel abgetönt, Rahmen bleiben unverändert */
+.th-fire { --stex: url(../tex/st_fire.jpg); --sdark: #00000030; --ssz: 130%; }
+.th-frost { --stex: url(../tex/st_frost.jpg); --sdark: #00000030; --ssz: 130%; }
+.th-arcane { --stex: url(../tex/st_arcane.jpg); --sdark: #00000030; --ssz: 130%; }
+.th-storm { --stex: url(../tex/st_storm.jpg); --sdark: #00000030; --ssz: 130%; }
+.th-shadow { --stex: url(../tex/st_shadow.jpg); --sdark: #00000030; --ssz: 130%; }
+.th-holy { --stex: url(../tex/st_holy.jpg); --sdark: #00000030; --ssz: 130%; }
+.th-nature { --stex: url(../tex/st_nature.jpg); --sdark: #00000030; --ssz: 130%; }
+.th-steel { --stex: url(../tex/st_steel.jpg); --sdark: #00000030; --ssz: 130%; }
+.th-demon { --stex: url(../tex/st_demon.jpg); --sdark: #00000030; --ssz: 130%; }
+.th-beast { --stex: url(../tex/st_beast.jpg); --sdark: #00000030; --ssz: 130%; }
+.th-mech { --stex: url(../tex/st_mech.jpg); --sdark: #00000030; --ssz: 130%; }
+.th-dragon { --stex: url(../tex/st_dragon.jpg); --sdark: #00000030; --ssz: 130%; }
+.th-murloc { --stex: url(../tex/st_murloc.jpg); --sdark: #00000030; --ssz: 130%; }
+.th-pirate { --stex: url(../tex/st_pirate.jpg); --sdark: #00000030; --ssz: 130%; }
+.th-totem { --stex: url(../tex/st_totem.jpg); --sdark: #00000030; --ssz: 130%; }
+.th-holy, .th-frost { --sdark: #00000090; }
+.th-murloc, .th-mech, .th-nature, .th-arcane { --sdark: #00000050; }
+.th-fire, .th-storm, .th-arcane, .th-demon { --sdark: #0000; --ssz: 110%; }

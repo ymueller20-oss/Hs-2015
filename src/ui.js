@@ -44,6 +44,35 @@
     const n = String(t).replace(/<[^>]+>/g, '').length * (wide ? 0.8 : 1);
     return n > 92 ? 't3' : n > 62 ? 't2' : '';
   }
+  /* Rahmenmaterial passend zum Motiv: Zauberschule, Volk oder Name des Dieners; sonst Klassenrahmen */
+  const SCHOOL = {
+    fire: 'fireball flamestrike pyroblast flamecannon dragons_breath vaporize hellfire soulfire shadowflame lava_burst lava_shock explosive_trap explosive_shot',
+    frost: 'frostbolt frost_nova ice_lance ice_barrier ice_block cone_of_cold blizzard frost_shock freezing_trap',
+    arcane: 'arcane_missiles mirror_image arcane_explosion arcane_intellect polymorph counterspell mirror_entity spellbender duplicate unstable_portal echo_of_medivh arcane_shot starfire starfall moonfire flare misdirection far_sight',
+    storm: 'forked_lightning lightning_bolt lightning_storm crackle windfury bloodlust',
+    shadow: 'shadow_word_pain mind_blast shadow_word_death mind_vision mind_control thoughtsteal shadowform mindgames shadow_madness corruption mortal_coil drain_life shadow_bolt sacrificial_pact siphon_soul darkbomb shadowstep vanish conceal deadly_poison dark_wispers feign_death',
+    demon: 'demonfire demonwrath demonheart sense_demons implosion twisting_nether power_overwhelming bane_of_doom',
+  };
+  const SCHOOL_OF = {};
+  for (const k in SCHOOL) for (const id of SCHOOL[k].split(' ')) SCHOOL_OF[id] = k;
+  const CLASS_SCHOOL = { mage: 'arcane', priest: 'holy', paladin: 'holy', druid: 'nature', hunter: 'nature', shaman: 'nature', warlock: 'shadow', rogue: 'steel', warrior: 'steel' };
+  const NAME_THEME = [
+    ['fire', /fire|flame|lava|magma|ragnaros|ember|blaze|pyro|molten|majordomo|inferno/],
+    ['frost', /frost|ice|water_elemental|snow|frozen|chill/],
+    ['storm', /storm|lightning|thunder|unbound|dust_devil|windspeaker|air_elemental/],
+    ['arcane', /arcan|mana_wyrm|kirin_tor|ethereal|sorcerer|azure|antonidas|archmage|spellbreaker|kobold_geomancer|dalaran|wyrm|medivh/],
+    ['shadow', /shadow|void|soul|lich|kelthuzad|death|necro|undead|ghoul|zombie|cult|wraith|shade|spectral|haunted|naxx|baron_rivendare|dark_|anubar|nerub|maexxna|deathlord|loatheb|feugen|stalagg|twilight/],
+    ['holy', /holy|light|argent|velen|healer|cleric|naaru|templar|crusader|priestess|tirion|aldor|guardian_of_kings|shieldmaiden/],
+    ['nature', /treant|ancient|dryad|keeper|cenarius|grove|tree|druid_of|ironbark|mire|bog|gnoll|nature|wisp|mukla/],
+  ];
+  function themeOf(d) {
+    if (d.type === 'weapon') return 'steel';
+    if (d.type === 'spell') return SCHOOL_OF[d.id] || CLASS_SCHOOL[d.cls] || 'arcane';
+    if (d.race) return d.race;
+    for (const [t, re] of NAME_THEME) if (re.test(d.id)) return t;
+    return '';
+  }
+  HS.themeOf = themeOf;
   function cardHTML(g, e, cardId, extra) {
     const d = e ? g.def(e) : HS.card(cardId);
     const cost = e && g ? g.cost(e) : d.cost;
@@ -57,7 +86,7 @@
     const text = e && g ? g.text(e) : HS.textOf(d);
     const type = (TYPE[d.type] || '') + (d.race ? ' — ' + HS.RACES[d.race] : d.secret ? ' — Geheimnis' : '');
     const nm = d.name.length > 22 ? 'xlong' : d.name.length > 15 ? 'long' : '';
-    return `<div class="card cls-${d.cls} rar-${d.rarity} type-${d.type} ${extra || ''}" ${e ? `data-eid="${e.id}"` : `data-cid="${d.id}"`}>
+    return `<div class="card cls-${d.cls} ${themeOf(d) ? 'th-' + themeOf(d) : ''} rar-${d.rarity} type-${d.type} ${extra || ''}" ${e ? `data-eid="${e.id}"` : `data-cid="${d.id}"`}>
       <div class="c-cost ${costCls}"><b>${cost}</b><i>♦</i></div>
       <div class="c-art">${artTag(d.id, d.cls)}</div>
       <div class="c-name ${nm}"><span>${esc(d.name)}</span></div>
@@ -443,6 +472,7 @@
         if ((!m.silenced && d.spellDamage) || m.ench.some((x) => x.sd)) ic.push('<i title="Zauberschaden">✷</i>');
         const a = g.atk(m), h = g.hp(m), mx = g.maxHp(m);
         const k = ['minion', 'cls-' + d.cls, mark(m)];
+        if (themeOf(d)) k.push('th-' + themeOf(d));
         if (g.has(m, 'taunt')) k.push('taunt');
         if (m.kw.divineShield) k.push('ds');
         if (g.has(m, 'stealth')) k.push('stealth');
@@ -966,7 +996,7 @@
       if (d.choose) {
         const dlg = showModal(`<h2>${esc(d.name)} – Wählt aus:</h2><div class="cards">${d.choose.map((o, i) => {
           const ok = g.canPlay(me, e, i);
-          return `<div class="card cls-${d.cls} type-spell choice" data-i="${i}" style="${ok ? '' : 'opacity:.35;pointer-events:none'}"><div class="c-name">${esc(o.name)}</div><div class="c-art">${artTag(d.id, d.cls)}</div><div class="c-type">Wählt aus</div><div class="c-text ${textSize(o.text, true)}"><div>${fmtText(o.text.replace(/\$(\d+)/g, (_, n) => { const v = g.spellDmg(e, +n); return v !== +n ? `*${v}*` : n; }))}</div></div></div>`;
+          return `<div class="card cls-${d.cls} th-${themeOf(d)} type-spell choice" data-i="${i}" style="${ok ? '' : 'opacity:.35;pointer-events:none'}"><div class="c-name">${esc(o.name)}</div><div class="c-art">${artTag(d.id, d.cls)}</div><div class="c-type">Wählt aus</div><div class="c-text ${textSize(o.text, true)}"><div>${fmtText(o.text.replace(/\$(\d+)/g, (_, n) => { const v = g.spellDmg(e, +n); return v !== +n ? `*${v}*` : n; }))}</div></div></div>`;
         }).join('')}</div><button id="x">Abbrechen</button>`);
         dlg.querySelector('#x').onclick = () => { hideModal(); this.cancel(); };
         dlg.querySelectorAll('[data-i]').forEach((c) => (c.onclick = () => {
