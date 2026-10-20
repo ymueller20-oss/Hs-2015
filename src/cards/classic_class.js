@@ -54,7 +54,7 @@
       { name: 'Star Shower', text: '$2 Schaden bei allen feindlichen Dienern.', play: (g, s) => g.aoe(s, g.board(1 - s.owner), g.spellDmg(s, 2)) },
     ] });
   S('force_of_nature', 'Force of Nature', 6, { cls: 'druid', rarity: 'epic', text: 'Ruft drei Treants (2/2) mit <b>Charge</b> herbei, die am Ende des Zuges sterben.',
-    play: (g, s) => { for (let i = 0; i < 3; i++) g.summon(s.owner, 't_treant_fon'); } });
+    canPlay: room, play: (g, s) => { for (let i = 0; i < 3; i++) g.summon(s.owner, 't_treant_fon'); } });
   M('ancient_of_lore', 'Ancient of Lore', 7, 5, 5, { cls: 'druid', rarity: 'epic', text: '<b>Choose One:</b> Zieht 2 Karten; oder stellt 5 Leben wieder her.',
     choose: [
       { name: 'Ancient Teachings', text: 'Zieht 2 Karten.', play: (g, s) => g.draw(s.owner, 2) },
@@ -98,9 +98,10 @@
   SEC('freezing_trap', 'Freezing Trap', 2, 'attack', (g, s, ev) => g.isMinion(ev.attacker) && ev.attacker.owner !== s.owner,
     (g, s, ev) => g.bounce(ev.attacker, { cost: 2 }),
     { cls: 'hunter', text: '<b>Secret:</b> Wenn ein feindlicher Diener angreift, kehrt er auf die Hand seines Besitzers zurück und kostet (2) mehr.' });
+  const misTargets = (g, ev) => g.chars().filter((c) => c !== ev.attacker && c !== ev.defender && !c.dead && !(g.isMinion(c) && c.owner !== ev.attacker.owner && g.has(c, 'stealth')));
   SEC('misdirection', 'Misdirection', 2, 'attack',
-    (g, s, ev) => ev.defender === g.hero(s.owner) && g.chars().some((c) => c !== ev.attacker && c !== ev.defender),
-    (g, s, ev) => { const t = g.pick(g.chars().filter((c) => c !== ev.attacker && c !== ev.defender && !(g.isMinion(c) && c.owner !== ev.attacker.owner && g.has(c, 'stealth')))); if (t) ev.defender = t; },
+    (g, s, ev) => ev.defender === g.hero(s.owner) && misTargets(g, ev).length > 0,
+    (g, s, ev) => { const t = g.pick(misTargets(g, ev)); if (t) ev.defender = t; },
     { cls: 'hunter', rarity: 'rare', text: '<b>Secret:</b> Wenn ein Charakter Euren Helden angreift, greift er stattdessen einen anderen zufälligen Charakter an.' });
   SEC('snipe', 'Snipe', 2, 'minionPlayed', (g, s, ev) => ev.player !== s.owner && g.inPlay(ev.minion),
     (g, s, ev) => g.damage(s, ev.minion, g.spellDmg(s, 4)),
@@ -176,7 +177,7 @@
     (g, s, ev) => { const d = g.summon(s.owner, 't_defender'); if (d) ev.defender = d; },
     { cls: 'paladin', text: '<b>Secret:</b> Wenn ein Feind angreift, ruft einen Defender (2/1) herbei, der das neue Ziel wird.' });
   SEC('redemption', 'Redemption', 1, 'death', (g, s, ev) => ev.owner === s.owner && room(g, s),
-    (g, s, ev) => { const m = g.summon(s.owner, ev.minion.card, ev.pos); if (m) m.damage = g.maxHp(m) - 1; },
+    (g, s, ev) => { const m = g.newEnt(ev.minion.card, s.owner, 'aside'); m.damage = Math.max(0, (g.def(m).hp || 0) - 1); g.place(m, ev.pos, true); },
     { cls: 'paladin', text: '<b>Secret:</b> Wenn ein befreundeter Diener stirbt, wird er mit 1 Leben wiederbelebt.' });
   SEC('repentance', 'Repentance', 1, 'minionPlayed', (g, s, ev) => ev.player !== s.owner && g.inPlay(ev.minion),
     (g, s, ev) => g.buff(ev.minion, { setHp: 1 }),
@@ -267,10 +268,10 @@
   M('patient_assassin', 'Patient Assassin', 2, 1, 1, { cls: 'rogue', rarity: 'epic', kw: ['stealth', 'poison'], text: '<b>Stealth</b>. Vernichtet jeden Diener, dem dieser Diener Schaden zufügt.' });
   M('si7_agent', 'SI:7 Agent', 3, 3, 3, { cls: 'rogue', rarity: 'rare', text: '<b>Combo:</b> Verursacht 2 Schaden.',
     target: 'char', targetIf: (g, s, ctx) => ctx.combo, play: (g, s, t) => { if (t) g.damage(s, t, 2); } });
-  HS.lib.E('e_headcrack', { type: 'effect', triggers: { turnStart: (g, ef, ev) => { if (ev.player === ef.owner) { g.addCard(ef.owner, 'headcrack'); g.removeEffect(ef); } } } });
+  HS.lib.E('e_headcrack', { type: 'effect', triggers: { turnEnd: (g, ef, ev) => { if (ev.player === ef.owner) { g.addCard(ef.owner, 'headcrack'); g.removeEffect(ef); } } } });
   S('headcrack', 'Headcrack', 3, { cls: 'rogue', rarity: 'rare', text: 'Verursacht $2 Schaden beim feindlichen Helden. <b>Combo:</b> Kehrt in Eurem nächsten Zug auf Eure Hand zurück.',
     play: (g, s, t, ctx) => { g.damage(s, g.hero(1 - s.owner), g.spellDmg(s, 2)); if (ctx.combo) g.addEffect(s.owner, 'e_headcrack'); } });
-  W('perditions_blade', 'Perditions Blade', 3, 2, 2, { cls: 'rogue', rarity: 'rare', text: '<b>Battlecry:</b> Verursacht 1 Schaden. <b>Combo:</b> Stattdessen 2 Schaden.',
+  W('perditions_blade', 'Perdition\'s Blade', 3, 2, 2, { cls: 'rogue', rarity: 'rare', text: '<b>Battlecry:</b> Verursacht 1 Schaden. <b>Combo:</b> Stattdessen 2 Schaden.',
     target: 'char', play: (g, s, t, ctx) => { if (t) g.damage(s, t, ctx.combo ? 2 : 1); } });
   M('edwin_vancleef', 'Edwin VanCleef', 3, 2, 2, { cls: 'rogue', rarity: 'legendary', text: '<b>Combo:</b> Erhält +2/+2 für jede Karte, die Ihr vorher in diesem Zug ausgespielt habt.',
     play: (g, s, t, ctx) => { const n = g.P(s.owner).played - 1; if (ctx.combo && n > 0) g.buff(s, { atk: 2 * n, hp: 2 * n }); } });
@@ -295,7 +296,7 @@
   S('far_sight', 'Far Sight', 3, { cls: 'shaman', rarity: 'epic', text: 'Zieht eine Karte. Sie kostet (3) weniger.',
     play: (g, s) => { const d = g.draw(s.owner)[0]; if (d) d.ench.push({ cost: -3 }); } });
   S('feral_spirit', 'Feral Spirit', 3, { cls: 'shaman', rarity: 'rare', overload: 2, text: 'Ruft zwei Spirit Wolves (2/3) mit <b>Taunt</b> herbei. <b>Overload:</b> (2)',
-    play: (g, s) => { g.summon(s.owner, 't_spirit_wolf'); g.summon(s.owner, 't_spirit_wolf'); } });
+    canPlay: room, play: (g, s) => { g.summon(s.owner, 't_spirit_wolf'); g.summon(s.owner, 't_spirit_wolf'); } });
   S('lava_burst', 'Lava Burst', 3, { cls: 'shaman', rarity: 'rare', overload: 2, text: 'Verursacht $5 Schaden. <b>Overload:</b> (2)', target: 'char',
     play: (g, s, t) => g.damage(s, t, g.spellDmg(s, 5)) });
   S('lightning_storm', 'Lightning Storm', 3, { cls: 'shaman', rarity: 'rare', overload: 2, text: 'Verursacht $2–$3 Schaden bei allen feindlichen Dienern. <b>Overload:</b> (2)',
@@ -324,8 +325,9 @@
       const ds = g.pickN(g.deck(s.owner).filter((c) => g.def(c).type === 'minion' && g.isRace(c, 'demon')), 2);
       for (let i = 0; i < 2; i++) {
         const d = ds[i];
-        if (d && g.P(s.owner).hand.length < 10) { g.removeFromDeck(d); d.zone = 'hand'; g.P(s.owner).hand.push(d.id); }
-        else if (!d) g.addCard(s.owner, 't_worthless_imp');
+        if (!d) { g.addCard(s.owner, 't_worthless_imp'); continue; }
+        g.removeFromDeck(d);
+        if (g.P(s.owner).hand.length < 10) { d.zone = 'hand'; g.P(s.owner).hand.push(d.id); } else d.zone = 'grave';
       }
     } });
   M('void_terror', 'Void Terror', 3, 3, 3, { cls: 'warlock', race: 'demon', rarity: 'rare', positional: true, text: '<b>Battlecry:</b> Vernichtet die benachbarten Diener und erhält deren Angriff und Leben.',
@@ -336,7 +338,7 @@
     play: (g, s, t) => { const a = g.atk(t); g.destroy(t); g.aoe(s, g.board(1 - s.owner), g.spellDmg(s, a)); } });
   M('pit_lord', 'Pit Lord', 4, 5, 6, { cls: 'warlock', race: 'demon', rarity: 'epic', text: '<b>Battlecry:</b> Verursacht 5 Schaden bei Eurem Helden.',
     play: (g, s) => g.damage(s, g.hero(s.owner), 5) });
-  M('summoning_portal', 'Summoning Portal', 4, 0, 4, { cls: 'warlock', rarity: 'rare', text: 'Eure Diener kosten (2) weniger, aber nicht weniger als (1).',
+  M('summoning_portal', 'Summoning Portal', 4, 0, 4, { cls: 'warlock', text: 'Eure Diener kosten (2) weniger, aber nicht weniger als (1).',
     costAura: (g, s, c) => (c.owner === s.owner && c.zone === 'hand' && g.def(c).type === 'minion' ? { delta: -2, min: 1 } : null) });
   S('bane_of_doom', 'Bane of Doom', 5, { cls: 'warlock', rarity: 'epic', text: 'Verursacht $2 Schaden. Stirbt das Ziel dadurch, ruft einen zufälligen Demon herbei.', target: 'char',
     play: (g, s, t) => { g.damage(s, t, g.spellDmg(s, 2)); if (g.hp(t) <= 0 || t.dead) g.summon(s.owner, g.randomCard((c) => c.type === 'minion' && c.race === 'demon')); } });
