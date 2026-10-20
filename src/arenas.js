@@ -15,9 +15,10 @@
     { id: 'forge', name: 'Zwergenschmiede', fx: 'sparks', c: ['#4a3a30', '#2a201a', '#0e0a08'], line: '#ff9a3a', glow: '#ffc070' },
     { id: 'grove', name: 'Mondhain', fx: 'motes', fx2: 'fireflies', c: ['#2a3450', '#161c30', '#070a14'], line: '#c8d8ff', glow: '#e0e8ff' },
   ];
-  HS.ARENA_IMGS = [];
+  HS.ARENA_IMGS = ['swamp', 'volcano', 'forest', 'market', 'castle', 'ice', 'crypt', 'desert', 'forge', 'grove'];
   HS.arena = (id) => HS.ARENAS.find((a) => a.id === id) || HS.ARENAS[0];
-  HS.arenaImg = (id) => (HS.ARENA_IMGS.includes(id) ? 'arena/' + id + '.jpg' : null);
+  // Gemalte Böden: quer für Desktop, hochkant (_p) fürs Handy
+  HS.arenaImg = (id, portrait) => (HS.ARENA_IMGS.includes(id) ? 'arena/' + id + (portrait ? '_p' : '') + '.jpg' : null);
 
   /* ---------- Partikel-Atmosphäre ---------- */
   const FX = {

@@ -598,11 +598,11 @@
       const oldMinions = this.captureMinions();
       this.lastPositions = oldMinions;
       const ar = HS.arena(this.arenaId);
-      const aimg = HS.arenaImg(ar.id);
-      const aStyle = `--a0:${ar.c[0]};--a1:${ar.c[1]};--a2:${ar.c[2]};--aline:${ar.line};--aglow:${ar.glow};${aimg ? `--aimg:url(${aimg});` : ''}`;
+      const aimg = HS.arenaImg(ar.id, innerHeight > innerWidth);
+      const aStyle = `--a0:${ar.c[0]};--a1:${ar.c[1]};--a2:${ar.c[2]};--aline:${ar.line};--aglow:${ar.glow};${aimg ? `--aimg:url(${new URL(aimg, location.href).href});` : ''}`;
       const oldFx = this.ambience;
       app.innerHTML = `<div class="game"><div class="stage" id="stage">
-        <div class="table arena-${ar.id}" data-arena="${ar.id}" style="${aStyle}"><div class="arena-name">${esc(ar.name)}</div>
+        <div class="table arena-${ar.id}${aimg ? ' painted' : ''}" data-arena="${ar.id}" style="${aStyle}"><div class="arena-name">${esc(ar.name)}</div>
           <div class="opp-hand">${oppHand}</div>
           <div class="hero-row opp">${pile(op)}${manaHTML(op)}${weaponHTML(op)}${heroHTML(op)}${powerHTML(op)}</div>
           <div class="board opp">${boardHTML(op)}</div>
@@ -771,6 +771,7 @@
       app.querySelectorAll('.slot').forEach((s) => (s.onclick = (ev) => { ev.stopPropagation(); this.withPos(+s.dataset.slot); }));
       const table = app.querySelector('.table');
       table.onpointerdown = (ev) => this.down(ev);
+      this.bindHandHover();
       table.oncontextmenu = (ev) => { ev.preventDefault(); this.cancel(); };
     },
     concede() {
@@ -1107,6 +1108,33 @@
       pv.classList.toggle('right', e.zone === 'hand' || !right);
       clearTimeout(this._pvT);
       if (sticky) this._pvT = setTimeout(() => pv.classList.add('hidden'), 2600);
+    },
+    /* Hover über die Hand: Auswahl nach fester Grundposition der Karten, damit die angehobene Karte nicht flackert */
+    bindHandHover() {
+      const hand = document.getElementById('myhand');
+      if (!hand) return;
+      let cur = null;
+      const set = (el) => {
+        if (el === cur) return;
+        if (cur) cur.classList.remove('hov');
+        cur = el;
+        if (cur) cur.classList.add('hov');
+      };
+      hand.addEventListener('pointermove', (ev) => {
+        if (ev.pointerType !== 'mouse' || this.drag || this.pending) return set(null);
+        const cards = [...hand.querySelectorAll(':scope > .card')];
+        if (!cards.length) return;
+        const r = hand.getBoundingClientRect();
+        const x = (ev.clientX - r.left) / (this.scale || 1);
+        let best = null, bd = Infinity;
+        for (const c of cards) {
+          const d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - x);
+          if (d < bd) { bd = d; best = c; }
+        }
+        set(best);
+      });
+      hand.addEventListener('pointerleave', () => set(null));
+      hand.addEventListener('pointerdown', () => set(null));
     },
     hidePreview() { const pv = document.getElementById('pv'); if (pv) pv.classList.add('hidden'); },
     /* Großansicht: jede Karte bildschirmfüllend mit Erklärungen (lange drücken / Rechtsklick) */
