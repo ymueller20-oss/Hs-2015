@@ -66,13 +66,15 @@
   M('kezan_mystic', 'Kezan Mystic', 4, 4, 3, { rarity: 'rare', text: '<b>Battlecry:</b> Übernehmt die Kontrolle über ein zufälliges feindliches <b>Secret</b>.',
     play: (g, s) => {
       const o = g.P(1 - s.owner), me = g.P(s.owner);
-      const sec = g.pick(o.secrets.map((id) => g.ent(id)));
+      const all = o.secrets.map((id) => g.ent(id));
+      const fresh = all.filter((x) => !me.secrets.some((id) => g.ent(id).card === x.card));
+      const sec = g.pick(fresh.length ? fresh : all);
       if (!sec) return;
       o.secrets = o.secrets.filter((id) => id !== sec.id);
       if (me.secrets.length < 5 && !me.secrets.some((id) => g.ent(id).card === sec.card)) { sec.owner = s.owner; me.secrets.push(sec.id); }
       else sec.zone = 'grave';
     } });
-  M('mini_mage', 'Mini Mage', 4, 4, 1, { rarity: 'epic', kw: ['stealth'], spellDamage: 1, text: '<b>Stealth</b>, <b>Spell Damage +1</b>' });
+  M('mini_mage', 'Mini-Mage', 4, 4, 1, { rarity: 'epic', kw: ['stealth'], spellDamage: 1, text: '<b>Stealth</b>, <b>Spell Damage +1</b>' });
   M('burly_rockjaw_trogg', 'Burly Rockjaw Trogg', 4, 3, 5, { text: 'Immer wenn Euer Gegner einen Zauber wirkt, erhält dieser Diener +2 Angriff.',
     triggers: { castSpell: (g, s, ev) => { if (ev.player !== s.owner) g.buff(s, { atk: 2 }); } } });
   M('lost_tallstrider', 'Lost Tallstrider', 4, 5, 4, { race: 'beast' });
@@ -108,7 +110,15 @@
       g.summon(s.owner, 't_v07tr0n');
     } } });
   M('gazlowe', 'Gazlowe', 6, 3, 6, { rarity: L, text: 'Immer wenn Ihr einen Zauber mit Kosten von (1) wirkt, erhaltet Ihr einen zufälligen Mech auf die Hand.',
-    triggers: { castSpell: (g, s, ev) => { if (ev.player === s.owner && g.def(ev.card).cost === 1) g.addCard(s.owner, randMinion(g, (c) => c.race === 'mech')); } } });
+    triggers: { castSpell: (g, s, ev) => {
+      if (ev.player !== s.owner) return;
+      /* aktuelle Kosten zählen (z. B. mit Sorcerer's Apprentice); Karte liegt gerade 'aside' */
+      const c = ev.card, z = c.zone;
+      c.zone = 'hand';
+      const cost = g.cost(c);
+      c.zone = z;
+      if (cost === 1) g.addCard(s.owner, randMinion(g, (x) => x.race === 'mech'));
+    } } });
   M('mogor_the_ogre', 'Mogor the Ogre', 6, 7, 6, { rarity: L, text: 'Alle Diener greifen mit einer Wahrscheinlichkeit von 50 % den falschen Feind an.' });
   M('toshley', 'Toshley', 6, 5, 7, { rarity: L, text: '<b>Battlecry and Deathrattle:</b> Erhaltet ein Spare Part auf die Hand.',
     play: (g, s) => spare(g, s.owner), deathrattle: (g, s) => spare(g, s.owner) });
@@ -152,7 +162,8 @@
   S('tree_of_life', 'Tree of Life', 9, { cls: 'druid', rarity: 'epic', text: 'Stellt bei ALLEN Charakteren sämtliches Leben wieder her.',
     play: (g, s) => g.batch(() => { for (const c of g.chars()) g.heal(s, c, c.damage); }) });
   M('malorne', 'Malorne', 7, 9, 7, { cls: 'druid', race: 'beast', rarity: L, text: '<b>Deathrattle:</b> Mischt diesen Diener in Euer Deck.',
-    deathrattle: (g, s) => g.shuffleIn(s.owner, 'malorne') });
+    /* nur einmal (Baron Rivendare) und nicht, solange Malorne noch im Spiel ist (Feign Death) */
+    deathrattle: (g, s) => { if (s.zone !== 'grave' || s.shuffled) return; s.shuffled = true; g.shuffleIn(s.owner, 'malorne'); } });
   T('t_fang_cobra', 'Druid of the Fang', 5, 7, 7, { cls: 'druid', race: 'beast' });
 
   /* ===== Jäger ===== */
@@ -239,7 +250,7 @@
     play: (g, s, t, ctx) => { const m = g.pick(g.board(1 - s.owner)); if (m) g.destroy(m); if (ctx.combo) { const w = g.weapon(1 - s.owner); if (w) g.destroy(w); } } });
   W('cogmasters_wrench', 'Cogmaster\'s Wrench', 3, 1, 3, { cls: 'rogue', rarity: 'epic', text: 'Hat +2 Angriff, solange Ihr einen Mech habt.',
     selfAtk: (g, s) => (g.board(s.owner).some((m) => isMech(g, m)) ? 2 : 0) });
-  M('goblin_auto_barber', 'Goblin Auto Barber', 2, 3, 2, { cls: 'rogue', race: 'mech', text: '<b>Battlecry:</b> Verleiht Eurer Waffe +1 Angriff.',
+  M('goblin_auto_barber', 'Goblin Auto-Barber', 2, 3, 2, { cls: 'rogue', race: 'mech', text: '<b>Battlecry:</b> Verleiht Eurer Waffe +1 Angriff.',
     play: (g, s) => { const w = g.weapon(s.owner); if (w) g.buff(w, { atk: 1 }); } });
   M('one_eyed_cheat', 'One-eyed Cheat', 2, 4, 1, { cls: 'rogue', race: 'pirate', rarity: 'rare', text: 'Immer wenn Ihr einen Pirate herbeiruft, erhält dieser Diener <b>Stealth</b>.',
     triggers: { summon: (g, s, ev) => { if (ev.minion !== s && ev.minion.owner === s.owner && g.isRace(ev.minion, 'pirate')) g.giveKw(s, 'stealth'); } } });
@@ -276,7 +287,7 @@
   S('darkbomb', 'Darkbomb', 2, { cls: 'warlock', text: 'Verursacht $3 Schaden.', target: 'char', play: (g, s, t) => g.damage(s, t, g.spellDmg(s, 3)) });
   S('demonheart', 'Demonheart', 5, { cls: 'warlock', rarity: 'epic', text: 'Verursacht $5 Schaden bei einem Diener. Ist es ein befreundeter Demon, erhält er stattdessen +5/+5.', target: 'minion',
     play: (g, s, t) => { if (t.owner === s.owner && g.isRace(t, 'demon')) g.buff(t, { atk: 5, hp: 5 }); else g.damage(s, t, g.spellDmg(s, 5)); } });
-  S('implosion', 'Implosion', 4, { cls: 'warlock', rarity: 'rare', text: 'Verursacht $2–$4 Schaden bei einem Diener. Ruft für jeden Schadenspunkt einen Imp (1/1) herbei.', target: 'minion',
+  S('implosion', 'Imp-losion', 4, { cls: 'warlock', rarity: 'rare', text: 'Verursacht $2–$4 Schaden bei einem Diener. Ruft für jeden Schadenspunkt einen Imp (1/1) herbei.', target: 'minion',
     play: (g, s, t) => { const n = g.spellDmg(s, 2 + g.rand(3)); g.damage(s, t, n); for (let i = 0; i < n; i++) g.summon(s.owner, 't_imp'); } });
   M('mistress_of_pain', 'Mistress of Pain', 2, 1, 4, { cls: 'warlock', race: 'demon', rarity: 'rare', text: 'Immer wenn dieser Diener Schaden verursacht, wird bei Eurem Helden genauso viel Leben wiederhergestellt.',
     triggers: { damage: (g, s, ev) => { if (ev.source === s) g.heal(s, g.hero(s.owner), ev.amount); } } });
