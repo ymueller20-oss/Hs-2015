@@ -111,13 +111,8 @@
     } } });
   M('gazlowe', 'Gazlowe', 6, 3, 6, { rarity: L, text: 'Immer wenn Ihr einen Zauber mit Kosten von (1) wirkt, erhaltet Ihr einen zufälligen Mech auf die Hand.',
     triggers: { castSpell: (g, s, ev) => {
-      if (ev.player !== s.owner) return;
-      /* aktuelle Kosten zählen (z. B. mit Sorcerer's Apprentice); Karte liegt gerade 'aside' */
-      const c = ev.card, z = c.zone;
-      c.zone = 'hand';
-      const cost = g.cost(c);
-      c.zone = z;
-      if (cost === 1) g.addCard(s.owner, randMinion(g, (x) => x.race === 'mech'));
+      /* tatsächlich bezahlte Kosten zählen (z. B. mit Sorcerer's Apprentice oder Preparation) */
+      if (ev.player === s.owner && ev.cost === 1) g.addCard(s.owner, randMinion(g, (x) => x.race === 'mech'));
     } } });
   M('mogor_the_ogre', 'Mogor the Ogre', 6, 7, 6, { rarity: L, text: 'Alle Diener greifen mit einer Wahrscheinlichkeit von 50 % den falschen Feind an.' });
   M('toshley', 'Toshley', 6, 5, 7, { rarity: L, text: '<b>Battlecry and Deathrattle:</b> Erhaltet ein Spare Part auf die Hand.',

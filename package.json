@@ -5,6 +5,6 @@
   "description": "Sammelkartenduell mit Regeln und Kartenwerten bis einschließlich Schwarzfels (Stand 2015)",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/rules.js && node test/mechanics.js && node test/sim.js 3000 10"
+    "test": "node test/rules.js && node test/mechanics.js && for f in test/audit_*.js; do node $f || exit 1; done && node test/sim.js 3000 10"
   }
 }

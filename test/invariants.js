@@ -19,7 +19,7 @@ for (let n = 0; n < 3000; n++) {
     if (g.s.phase === 'play') for (const m of g.board()) if (g.hp(m) <= 0 || m.dead) { zombie++; if (zombie < 5) console.log('Zombie:', m.card, g.hp(m), JSON.stringify(a)); }
     if (attacker && defHero && g.isMinion(attacker) && attacker.zone !== 'play') {
       const log = g.s.log.slice(logLen).join(' | ');
-      const why = /Geheimnis aufgedeckt: (\S+ ?\S*)/.exec(log);
+      const why = /(?:Geheimnis|Secret) aufgedeckt: (\S+ ?\S*)/.exec(log);
       const key = why ? 'Geheimnis ' + why[1] : /falsche Ziel/.test(log) ? 'Fehlangriff (Oger)' : 'UNERKLÄRT';
       oddDeaths[key] = (oddDeaths[key] || 0) + 1;
       if (key === 'UNERKLÄRT' && oddDeaths[key] < 6) console.log('Unerklärt:', attacker.card, hpBefore, log);

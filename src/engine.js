@@ -380,14 +380,17 @@
         const list = this.triggerList(name);
         for (const [kind, e, h, x] of list) {
           if (this.s.phase === 'over') break;
+          /* Verlässt der Angreifer das Spiel (z. B. Freezing Trap), entfällt der Angriff samt weiterer Angriffstrigger */
+          if (name === 'attack' && !this.inPlay(ev.attacker)) break;
           if (kind === 'sec') {
+            /* ein gekonterter Zauber löst keine weiteren Secrets (z. B. Spellbender) aus */
+            if (name === 'castSpell' && ev.countered) continue;
             if (e.zone !== 'secret' || this.s.cur === e.owner) continue;
             if (h.cond && !h.cond(this, e, ev)) continue;
             this.revealSecret(e);
             h.fire(this, e, ev);
             continue;
           }
-          if (name === 'castSpell' && ev.countered) break;
           if (kind === 'ent') {
             if (!this.inPlay(e) || e.silenced || e.dead) continue;
             h(this, e, ev);
@@ -446,10 +449,10 @@
             return 0;
           }
         }
+        /* von Rüstung abgefangener Schaden zählt trotzdem als Schaden (Freeze, Stealth, Auslöser) */
         const ab = Math.min(t.armor, n);
         t.armor -= ab;
-        n -= ab;
-        if (n <= 0) return 0;
+        t.damage -= ab;
       }
       t.damage += n;
       if (!this._combat) {
@@ -691,7 +694,7 @@
           continue;
         }
         p.maxMana++;
-        if (full) p.mana++;
+        if (full) p.mana = Math.min(10, p.mana + 1);
       }
     }
     randomCards(filter) { return HS.collectible().filter(filter).map((c) => c.id); }
@@ -709,7 +712,7 @@
           const w = this.weapon(i);
           if (w && (w.dead || this.hp(w) <= 0)) deadW.push(w);
         }
-        const hd = [0, 1].filter((i) => this.hp(this.hero(i)) <= 0);
+        const hd = [0, 1].filter((i) => this.hp(this.hero(i)) <= 0 || this.hero(i).dead);
         if (hd.length) {
           this.s.phase = 'over';
           this.s.winner = hd.length === 2 ? -1 : 1 - hd[0];
@@ -717,12 +720,17 @@
           return;
         }
         if (!dead.length && !deadW.length) break;
-        dead.sort((a, b) => a.order - b.order);
+        /* Platz jedes Toten relativ zu den Überlebenden: Index vor dem Entfernen minus gleichzeitig entfernte Diener links davon */
+        const orig = new Map(dead.map((m) => [m, this.pos(m)]));
         const infos = [];
         for (const m of dead) {
-          const pos = this.removeFromBoard(m);
+          const o = orig.get(m);
+          const left = dead.filter((x) => x.owner === m.owner && orig.get(x) < o).length;
+          infos.push({ m, pos: o - left, orig: o, owner: m.owner, added: 0, done: false });
+        }
+        for (const m of dead) {
+          this.removeFromBoard(m);
           m.zone = 'grave';
-          infos.push({ m, pos, owner: m.owner });
           this.s.diedThisTurn.push({ card: m.card, owner: m.owner });
           this.P(m.owner).graveyard.push(m.card);
           this.log(`${this.def(m).name} stirbt.`);
@@ -730,11 +738,20 @@
         for (const w of deadW) {
           this.P(w.owner).weapon = 0;
           w.zone = 'grave';
-          const d = this.def(w);
-          if (d.deathrattle) d.deathrattle(this, w, { owner: w.owner });
         }
-        for (const info of infos) {
+        /* Todesröcheln (Diener und Waffen) in Ausspielreihenfolge */
+        const queue = infos.concat(deadW.map((w) => ({ w, owner: w.owner })));
+        queue.sort((a, b) => (a.m || a.w).order - (b.m || b.w).order);
+        for (const info of queue) {
+          if (this.s.phase === 'over') return;
+          if (info.w) {
+            const d = this.def(info.w);
+            if (d.deathrattle) d.deathrattle(this, info.w, { owner: info.w.owner });
+            continue;
+          }
           const m = info.m;
+          /* bereits aufgelöste Tote links davon haben ggf. schon Diener an ihren Platz gestellt */
+          info.pos += infos.filter((x) => x.done && x.owner === info.owner && x.orig < info.orig).reduce((n, x) => n + x.added, 0);
           const list = [];
           const d = this.def(m);
           if (!m.silenced && d.deathrattle) list.push(d.deathrattle);
@@ -743,10 +760,13 @@
             if (xd && xd.deathrattle) list.push(xd.deathrattle);
           }
           const times = this.hasOnBoard(m.owner, 'baron_rivendare') ? 2 : 1;
+          const before = this.P(info.owner).board.length;
           for (let t = 0; t < times; t++) for (const dr of list) {
             if (this.s.phase === 'over') return;
             dr(this, m, info);
           }
+          info.added = Math.max(0, this.P(info.owner).board.length - before);
+          info.done = true;
           this.fire('death', { minion: m, owner: m.owner, pos: info.pos });
         }
       }
@@ -894,20 +914,24 @@
         if (!target || !tl.includes(target)) return false;
       }
       const p = this.P(pi);
-      p.mana -= this.cost(e);
+      const paid = this.cost(e);
+      p.mana -= paid;
       this.removeFromHand(e);
       e.zone = 'aside';
       const ctx = { combo: p.played > 0, choice: opt.choice, pos: opt.pos };
       p.played++;
       const o = this.option(e, opt.choice);
       this.log(`${p.name} spielt ${c.name}${target ? ' → ' + this.nm(target) : ''}.`);
-      this.fire('cardPlayed', { card: e, player: pi, target });
+      /* Diener stehen bereits auf dem Feld, wenn „Wenn Ihr eine Karte ausspielt“ auslöst (Illidan, Hobgoblin) */
+      const played = () => this.fire('cardPlayed', { card: e, player: pi, target, cost: paid });
+      if (c.type !== 'minion') played();
       if (c.overload) p.overload += c.overload;
       if (c.type === 'minion') {
         if (p.board.length >= 7) { e.zone = 'grave'; this.processDeaths(); return true; }
         let pos = opt.pos;
         if (pos == null || pos > p.board.length) pos = p.board.length;
         this.place(e, pos, false);
+        played();
         p.minionsPlayed++;
         if (o.play && this.inPlay(e)) {
           if (!target || this.inPlay(target)) o.play(this, e, target, ctx);
@@ -918,12 +942,18 @@
         this.equipEnt(e);
         if (o.play) o.play(this, e, target, ctx);
       } else if (c.secret) {
-        e.zone = 'secret';
-        e.order = this.s.order++;
-        p.secrets.push(e.id);
-        this.fire('secretPlayed', { secret: e, player: pi });
+        /* Ein Secret auszuspielen ist ein gewirkter Zauber (Counterspell, Mana Wyrm, Wild Pyromancer …) */
+        const ev = this.fire('castSpell', { card: e, player: pi, target: null, countered: false, cost: paid });
+        if (ev.countered) e.zone = 'grave';
+        else if (p.secrets.length < 5 && !p.secrets.some((id) => this.ent(id).card === e.card)) {
+          e.zone = 'secret';
+          e.order = this.s.order++;
+          p.secrets.push(e.id);
+          this.fire('secretPlayed', { secret: e, player: pi });
+          this.fire('afterSpell', { card: e, player: pi });
+        } else e.zone = 'grave';
       } else {
-        const ev = this.fire('castSpell', { card: e, player: pi, target, countered: false });
+        const ev = this.fire('castSpell', { card: e, player: pi, target, countered: false, cost: paid });
         if (!ev.countered) {
           target = ev.target;
           if (target && target.owner === pi && this.isMinion(target)) this.fire('spellTarget', { card: e, target });
@@ -943,7 +973,8 @@
       if (!this.attackTargets(a).includes(d)) return false;
       a.attacks++;
       const w = this.isHero(a) ? this.weapon(a.owner) : null;
-      const ogre = this.has(a, 'ogre') || (w && this.has(w, 'ogre')) || this.board().some((m) => m.card === 'mogor_the_ogre' && !m.silenced);
+      /* Mogor betrifft nur Diener; ein Held vergreift sich nur mit Ogre Warmaul */
+      const ogre = this.has(a, 'ogre') || (w && this.has(w, 'ogre')) || (this.isMinion(a) && this.board().some((m) => m.card === 'mogor_the_ogre' && !m.silenced));
       if (ogre && this.chance(0.5)) {
         const alt = this.chars(1 - a.owner).filter((t) => t !== d && !(this.isMinion(t) && this.has(t, 'stealth')));
         if (alt.length) {
@@ -1030,7 +1061,8 @@
       this.expire('end:' + pi);
       for (const e of this.chars(pi)) {
         if (!e.frozen) continue;
-        const missed = e.frozenTurn === s.turn && (e.attacks > 0 || (this.isMinion(e) && e.exhausted && !this.has(e, 'charge')));
+        /* bleibt eingefroren, wenn es in diesem Zug eingefroren wurde und ohnehin nicht (mehr) angreifen konnte */
+        const missed = e.frozenTurn === s.turn && (e.attacks >= this.maxAttacks(e) || (this.isMinion(e) && e.exhausted && !this.has(e, 'charge')));
         if (!missed) e.frozen = false;
       }
       this.processDeaths();
