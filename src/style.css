@@ -358,7 +358,7 @@ h1 { color: var(--gold); font-size: 2.4em; text-shadow: 0 3px 0 #000; }
 .stage .board { min-height: 0; padding: 4px; }
 .stage .hand { height: 96px; }
 .stage .hand .card { transform: translateY(calc(48px + var(--dy))) rotate(var(--rot)); }
-.stage .hand .card.hov { transform: translateY(-120px) scale(1.7) rotate(0); }
+.stage .hand .card.hov { transform: translateY(-62px) scale(1.4) rotate(0); }
 .turnbtn { position: absolute; right: 22px; top: 50%; transform: translateY(-50%); margin: 0; z-index: 6; min-width: 120px; }
 .topbar { position: absolute; top: 8px; left: 10px; right: 10px; display: flex; gap: 8px; align-items: center; pointer-events: none; z-index: 7; }
 .topbar > * { pointer-events: auto; }
@@ -408,7 +408,7 @@ body.portrait-unused .game::after {
 .stage.portrait .hand { height: 230px; align-items: flex-end; }
 .stage.portrait .hand .card { margin: 0 calc(var(--cw) * -.2); transform: translateY(calc(30px + var(--dy))) rotate(var(--rot)); }
 .stage.portrait .hand.cramped .card { margin: 0 calc(var(--cw) * -.34); }
-.stage.portrait .hand .card.hov { transform: translateY(-40px) scale(1.25) rotate(0); }
+.stage.portrait .hand .card.hov { transform: translateY(-20px) scale(1.2) rotate(0); }
 .stage.portrait .turnbtn { right: 8px; padding: 10px 12px; min-width: 104px; font-size: .85em; }
 .stage.portrait .topbar .status { font-size: .85em; }
 .stage.portrait .hint { top: 44px; }

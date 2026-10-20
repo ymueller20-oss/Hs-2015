@@ -853,6 +853,9 @@
       if (ev.button === 2) return;
       const g = this.g;
       let t = ev.target.closest('[data-eid],[data-power],.slot');
+      /* angehobene Karte greifen, auch wenn der Zeiger unter ihr auf der Nachbarkarte steht */
+      const hov = ev.target.closest('#myhand') && app.querySelector('#myhand > .card.hov');
+      if (hov) t = hov;
       if (this.pending) {
         /* Diener wartet in seiner Lücke auf das Kampfschrei-Ziel: Tipp auf ein Ziel spielt ihn aus, alles andere bricht ab */
         const hit = t && this.sel && this.sel.targets && this.sel.targets.find((x) => x.id === +t.dataset.eid);
@@ -916,6 +919,7 @@
           d.ghost.className = 'ghost';
           d.ghost.innerHTML = cardHTML(g, d.e);
           document.getElementById('stage').append(d.ghost);
+          d.el.classList.remove('hov');
           d.el.classList.add('lifted');
           d.boardEls = [...app.querySelectorAll('#myboard .minion')];
           d.centers = d.boardEls.map((el) => this.center(el)[0]);
@@ -1133,8 +1137,7 @@
         }
         set(best);
       });
-      hand.addEventListener('pointerleave', () => set(null));
-      hand.addEventListener('pointerdown', () => set(null));
+      hand.addEventListener('pointerleave', () => { if (!this.drag) set(null); });
     },
     hidePreview() { const pv = document.getElementById('pv'); if (pv) pv.classList.add('hidden'); },
     /* Großansicht: jede Karte bildschirmfüllend mit Erklärungen (lange drücken / Rechtsklick) */
