@@ -77,7 +77,7 @@
   /* ===== Magier ===== */
   S('arcane_missiles', 'Arcane Missiles', 1, { cls: 'mage', text: 'Verursacht $3 Schaden, zufällig auf alle Feinde verteilt.',
     play: (g, s) => g.splitDamage(s, g.spellDmg(s, 3), () => g.chars(1 - s.owner)) });
-  S('mirror_image', 'Mirror Image', 1, { cls: 'mage', text: 'Ruft zwei Diener (0/2) mit <b>Taunt</b> herbei.',
+  S('mirror_image', 'Mirror Image', 1, { cls: 'mage', text: 'Ruft zwei Diener (0/2) mit <b>Taunt</b> herbei.', canPlay: room,
     play: (g, s) => { g.summon(s.owner, 't_mirror_image'); g.summon(s.owner, 't_mirror_image'); } });
   S('arcane_explosion', 'Arcane Explosion', 2, { cls: 'mage', text: 'Verursacht $1 Schaden bei allen feindlichen Dienern.',
     play: (g, s) => g.aoe(s, g.board(1 - s.owner), g.spellDmg(s, 1)) });
@@ -186,8 +186,9 @@
   S('sacrificial_pact', 'Sacrificial Pact', 0, { cls: 'warlock', text: 'Vernichtet einen Demon. Stellt bei Eurem Helden #5 Leben wieder her.',
     target: { t: 'char', f: (g, s, t) => g.isRace(t, 'demon') },
     play: (g, s, t) => {
-      if (g.isHero(t)) t.damage = g.maxHp(t) + t.armor; else g.destroy(t);
-      g.heal(s, g.hero(s.owner), g.spellHeal(s, 5));
+      if (g.isHero(t)) { t.armor = 0; t.damage = g.maxHp(t); } else g.destroy(t);
+      /* ein vernichteter eigener Held (Jaraxxus) wird nicht mehr geheilt */
+      if (t !== g.hero(s.owner)) g.heal(s, g.hero(s.owner), g.spellHeal(s, 5));
     } });
   HS.lib.E('e_corruption', { triggers: { turnStart: (g, e, ev, x) => { if (ev.player === x.by) g.destroy(e); } } });
   S('corruption', 'Corruption', 1, { cls: 'warlock', text: 'Wählt einen feindlichen Diener. Zu Beginn Eures Zuges wird er vernichtet.', target: 'enemyMinion',
