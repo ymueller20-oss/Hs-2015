@@ -29,10 +29,9 @@
       c.zone = 'secret';
       c.order = g.s.order++;
       p.secrets.push(c.id);
-      g.fire('secretPlayed', { secret: c, player: s.owner });
     } });
   M('nerubar_weblord', 'Nerub\'ar Weblord', 2, 1, 4, { text: 'Diener mit <b>Battlecry</b> kosten (2) mehr.',
-    costAura: (g, s, c) => { const d = g.def(c); return c.zone === 'hand' && d.type === 'minion' && (d.play || d.choose) && !d.noBattlecry ? 2 : 0; } });
+    costAura: (g, s, c) => { const d = g.def(c); return c.zone === 'hand' && d.type === 'minion' && d.play && /<b>Battlecry:/.test(d.text) && !d.noBattlecry ? 2 : 0; } });
   M('nerubian_egg', 'Nerubian Egg', 2, 0, 2, { rarity: 'rare', text: '<b>Deathrattle:</b> Ruft einen Nerubian (4/4) herbei.',
     deathrattle: (g, s, info) => g.summon(s.owner, 't_nerubian', info.pos) });
   M('unstable_ghoul', 'Unstable Ghoul', 2, 1, 3, { kw: ['taunt'], text: '<b>Taunt</b>. <b>Deathrattle:</b> Verursacht 1 Schaden bei allen Dienern.',
@@ -53,7 +52,7 @@
   M('baron_rivendare', 'Baron Rivendare', 4, 1, 7, { rarity: L, text: 'Die <b>Deathrattle</b> Eurer Diener werden zweimal ausgelöst.' });
   M('wailing_soul', 'Wailing Soul', 4, 3, 5, { rarity: 'rare', text: '<b>Battlecry:</b> Wirkt <b>Silence</b> auf Eure anderen Diener.',
     play: (g, s) => { for (const m of g.others(s)) g.silence(m); } });
-  const thaddius = (other) => (g, s) => { if (g.P(s.owner).graveyard.includes(other)) g.summon(s.owner, 't_thaddius'); };
+  const thaddius = (other) => (g, s, info) => { if (g.P(0).graveyard.includes(other) || g.P(1).graveyard.includes(other)) g.summon(s.owner, 't_thaddius', info.pos); };
   M('feugen', 'Feugen', 5, 4, 7, { rarity: L, text: '<b>Deathrattle:</b> Ist Stalagg in diesem Spiel ebenfalls gestorben, ruft Thaddius herbei.', deathrattle: thaddius('stalagg') });
   M('stalagg', 'Stalagg', 5, 7, 4, { rarity: L, text: '<b>Deathrattle:</b> Ist Feugen in diesem Spiel ebenfalls gestorben, ruft Thaddius herbei.', deathrattle: thaddius('feugen') });
   HS.lib.E('e_loatheb', { type: 'effect', costMod: (g, ef, c) => (c.owner === ef.owner && c.zone === 'hand' && g.def(c).type === 'spell' ? 5 : 0) });
@@ -99,7 +98,7 @@
     deathrattle: (g, s) => g.aoe(s, g.board(), 1) });
 
   T('t_spectral_spider', 'Spectral Spider', 1, 1, 1);
-  T('t_nerubian', 'Nerubian', 4, 4, 4);
+  T('t_nerubian', 'Nerubian', 3, 4, 4);
   T('t_slime', 'Slime', 1, 1, 2, { kw: ['taunt'], text: '<b>Taunt</b>' });
   T('t_thaddius', 'Thaddius', 10, 11, 11, { rarity: L });
 })();

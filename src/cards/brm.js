@@ -60,13 +60,13 @@
   M('twilight_whelp', 'Twilight Whelp', 1, 2, 1, { cls: 'priest', race: 'dragon', text: '<b>Battlecry:</b> Habt Ihr einen Dragon auf der Hand, erhält dieser Diener +2 Leben.',
     play: (g, s) => { if (g.holding(s.owner, 'dragon')) g.buff(s, { hp: 2 }); } });
   S('resurrect', 'Resurrect', 2, { cls: 'priest', rarity: 'rare', text: 'Ruft einen zufälligen befreundeten Diener herbei, der in diesem Spiel gestorben ist.',
-    canPlay: (g, s) => g.P(s.owner).board.length < 7,
+    canPlay: (g, s) => g.P(s.owner).board.length < 7 && g.P(s.owner).graveyard.length > 0,
     play: (g, s) => { const c = g.pick(g.P(s.owner).graveyard); if (c) g.summon(s.owner, c); } });
   S('gang_up', 'Gang Up', 2, { cls: 'rogue', text: 'Wählt einen Diener. Mischt 3 Kopien davon in Euer Deck.', target: 'minion',
     play: (g, s, t) => { for (let i = 0; i < 3; i++) g.shuffleIn(s.owner, t.card); } });
   M('dark_iron_skulker', 'Dark Iron Skulker', 5, 4, 3, { cls: 'rogue', rarity: 'rare', text: '<b>Battlecry:</b> Verursacht 2 Schaden bei allen unverletzten feindlichen Dienern.',
     play: (g, s) => g.aoe(s, g.board(1 - s.owner).filter((m) => m.damage === 0), 2) });
-  S('lava_shock', 'Lava Shock', 2, { cls: 'shaman', text: 'Verursacht $2 Schaden. Hebt die Sperre Eurer überladenen Manakristalle auf.', target: 'char',
+  S('lava_shock', 'Lava Shock', 2, { cls: 'shaman', rarity: 'rare', text: 'Verursacht $2 Schaden. Hebt die Sperre Eurer überladenen Manakristalle auf.', target: 'char',
     play: (g, s, t) => { g.damage(s, t, g.spellDmg(s, 2)); const p = g.P(s.owner); p.mana = Math.min(10, p.mana + p.locked); p.locked = 0; p.overload = 0; } });
   M('fireguard_destroyer', 'Fireguard Destroyer', 4, 3, 6, { cls: 'shaman', overload: 1, text: '<b>Battlecry:</b> Erhält 1–4 Angriff. <b>Overload:</b> (1)',
     play: (g, s) => g.buff(s, { atk: 1 + g.rand(4) }) });
