@@ -144,7 +144,7 @@
     play: (g, s) => { for (const m of g.adj(s)) { g.buff(m, { atk: 1, hp: 1 }); g.giveKw(m, 'taunt'); } } });
   M('dread_corsair', 'Dread Corsair', 4, 3, 3, { race: 'pirate', kw: ['taunt'], text: '<b>Taunt</b>. Kostet (1) weniger pro Angriffspunkt Eurer Waffe.',
     selfCost: (g, s) => { const w = g.weapon(s.owner); return w ? -g.atk(w) : 0; } });
-  M('leeroy_jenkins', 'Leeroy Jenkins', 4, 6, 2, { rarity: L, kw: ['charge'], text: '<b>Charge</b>. <b>Battlecry:</b> Ruft zwei Whelps (1/1) für Euren Gegner herbei.',
+  M('leeroy_jenkins', 'Leeroy Jenkins', 5, 6, 2, { rarity: L, kw: ['charge'], text: '<b>Charge</b>. <b>Battlecry:</b> Ruft zwei Whelps (1/1) für Euren Gegner herbei.',
     play: (g, s) => { g.summon(1 - s.owner, 't_whelp'); g.summon(1 - s.owner, 't_whelp'); } });
   M('mogushan_warden', 'Mogu\'shan Warden', 4, 1, 7, { kw: ['taunt'], text: '<b>Taunt</b>' });
   M('old_murk_eye', 'Old Murk-Eye', 4, 2, 4, { race: 'murloc', rarity: L, kw: ['charge'], text: '<b>Charge</b>. Hat +1 Angriff für jeden anderen Murloc auf dem Schlachtfeld.',
@@ -221,7 +221,7 @@
   M('malygos', 'Malygos', 9, 4, 12, { race: 'dragon', rarity: L, spellDamage: 5, text: '<b>Spell Damage +5</b>' });
   M('nozdormu', 'Nozdormu', 9, 8, 8, { race: 'dragon', rarity: L, text: 'Spieler haben pro Zug nur 15 Sekunden Zeit.' });
   M('onyxia', 'Onyxia', 9, 8, 8, { race: 'dragon', rarity: L, text: '<b>Battlecry:</b> Ruft Whelps (1/1) herbei, bis Eure Seite des Schlachtfelds voll ist.',
-    play: (g, s) => { let left = true; while (g.P(s.owner).board.length < 7) { const i = g.pos(s); g.summon(s.owner, 't_whelp', left ? i : i + 1); left = !left; } } });
+    play: (g, s) => { let left = true; while (g.P(s.owner).board.length < 7) { const i = g.pos(s); if (!g.summon(s.owner, 't_whelp', left ? i : i + 1)) break; left = !left; } } });
   const DREAMS = ['t_dream', 't_emerald_drake', 't_laughing_sister', 't_nightmare', 't_ysera_awakens'];
   M('ysera', 'Ysera', 9, 4, 12, { race: 'dragon', rarity: L, text: 'Erhaltet am Ende Eures Zuges eine Dream-Karte auf die Hand.',
     triggers: { turnEnd: (g, s, ev) => { if (ev.player === s.owner) g.addCard(s.owner, g.pick(DREAMS)); } } });
@@ -248,7 +248,7 @@
   T('t_baine_bloodhoof', 'Baine Bloodhoof', 4, 4, 5, { rarity: L });
   T('t_gnoll', 'Gnoll', 2, 2, 2, { kw: ['taunt'], text: '<b>Taunt</b>' });
   T('t_flame_of_azzinoth', 'Flame of Azzinoth', 1, 2, 1);
-  T('t_finkle_einhorn', 'Finkle Einhorn', 3, 3, 3, { rarity: L });
+  T('t_finkle_einhorn', 'Finkle Einhorn', 2, 3, 3, { rarity: L });
   TS('t_bananas', 'Bananas', 1, { text: 'Verleiht einem Diener +1/+1.', target: 'minion', play: (g, s, t) => g.buff(t, { atk: 1, hp: 1 }) });
   TS('t_dream', 'Dream', 0, { text: 'Lasst einen Diener auf die Hand seines Besitzers zurückkehren.', target: 'minion', play: (g, s, t) => g.bounce(t) });
   T('t_emerald_drake', 'Emerald Drake', 4, 7, 6, { race: 'dragon' });
